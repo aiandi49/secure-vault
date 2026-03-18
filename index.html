@@ -771,7 +771,13 @@ function updateNavUI() {
     chip.classList.add('visible');
     var name = currentUser.name || currentUser.email.split('@')[0];
     document.getElementById('navUserName').textContent = name;
-    document.getElementById('navAvatarCircle').textContent = name.charAt(0).toUpperCase();
+  var pic = currentUser.picture || '';
+  var avatarEl = document.getElementById('navAvatarCircle');
+  if (pic) {
+    avatarEl.innerHTML = '<img src="' + pic + '" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" />';
+  } else {
+    avatarEl.textContent = name.charAt(0).toUpperCase();
+  }
     document.getElementById('vaultWelcome').innerHTML = 'Welcome, <span>' + esc(name) + '</span>';
     document.getElementById('vaultSubText').textContent = currentUser.email + ' · Your vault is encrypted';
   } else {
@@ -937,9 +943,13 @@ function openProfile() {
   document.getElementById('pf-pass').value = '';
   document.getElementById('pf-display-name').textContent = name || currentUser.email.split('@')[0];
   document.getElementById('pf-display-email').textContent = currentUser.email;
-  document.getElementById('pf-avatar-circle').textContent = (name || '?').charAt(0).toUpperCase();
-  openModal('profileModal');
-}
+  var pfPic = currentUser.picture || '';
+  var pfAv = document.getElementById('pf-avatar-circle');
+  if (pfPic) {
+    pfAv.innerHTML = '<img src="' + pfPic + '" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" />';
+  } else {
+    pfAv.textContent = (name || '?').charAt(0).toUpperCase();
+  }
 
 function saveProfile() {
   if (!currentUser) return;
