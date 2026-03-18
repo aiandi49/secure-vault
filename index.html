@@ -6,6 +6,7 @@
 <title>Secure Vault — Password Manager</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Space+Mono:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 :root{--bg:#090d18;--bg2:#0d1526;--card:#101c35;--card2:#152040;--gold:#e8b84b;--gold2:#f5d27a;--gold-dim:rgba(232,184,75,0.15);--navy:#1a3a6e;--navy-bright:#2b5ba8;--cyan:#4de8ff;--cyan-dim:rgba(77,232,255,0.12);--red:#e84b4b;--green:#4be89a;--text:#e8f0ff;--muted:#7a90b8;--border:rgba(232,184,75,0.2);--border2:rgba(77,232,255,0.15)}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -853,69 +854,76 @@ function showErr(el, msg) {
 }
 
 // ═══════════════════════════════════════════════════════
-//  GOOGLE SIGN-IN  (simulated picker — wire real OAuth in production)
+//  GOOGLE SIGN-IN  (real Google Identity Services OAuth)
 // ═══════════════════════════════════════════════════════
+var GOOGLE_CLIENT_ID = '567924136819-2oio3t3nt1bkgqpvd30220hasknjcpfs.apps.googleusercontent.com';
 var googleFromModal = '';
+
 function handleGoogleSignIn(fromModal) {
   closeModal(fromModal);
   googleFromModal = fromModal;
 
-  // Build account list from existing users for demo realism
-  var users = loadUsers();
-  var emails = Object.keys(users);
-  var listEl = document.getElementById('googleAccountsList');
-  listEl.innerHTML = '';
-
-  // Always show a generic "use any Google account" option
-  var accounts = emails.length > 0 ? emails.slice(0, 3) : [];
-  if (accounts.length === 0) {
-    // No accounts yet — just show "use an account" prompt
-    listEl.innerHTML = '<div style="padding:14px;background:#f8f9fa;border-radius:10px;font-size:.88rem;color:#5f6368;">No Google accounts linked yet.<br>Enter your email below to link one.</div>';
-  } else {
-    accounts.forEach(function(em) {
-      var u = users[em];
-      var name = u.name || em.split('@')[0];
-      var init = name.charAt(0).toUpperCase();
-      var div = document.createElement('div');
-      div.style.cssText = 'display:flex;align-items:center;gap:14px;padding:14px 18px;border:1px solid #dadce0;border-radius:12px;cursor:pointer;transition:background .15s;text-align:left;';
-      div.innerHTML = '<div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#4285F4,#34A853);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:1.1rem;flex-shrink:0;">' + init + '</div><div><div style="font-weight:600;font-size:.9rem;color:#202124;">' + esc(name) + '</div><div style="font-size:.78rem;color:#5f6368;">' + esc(em) + '</div></div><div style="margin-left:auto;color:#4285F4;font-size:.78rem;font-weight:600;">Select ›</div>';
-      div.onmouseover = function() { this.style.background = '#f8f9fa'; };
-      div.onmouseout = function() { this.style.background = '#fff'; };
-      div.onclick = function() { googleSelectAccount(em); };
-      listEl.appendChild(div);
-    });
+  if (typeof google === 'undefined' || !google.accounts) {
+    showToast('⚠ Google Sign-In is loading, please try again.');
+    return;
   }
 
-  // "Use another account" option
-  var otherDiv = document.createElement('div');
-  otherDiv.style.cssText = 'display:flex;align-items:center;gap:14px;padding:12px 18px;border:1px solid #dadce0;border-radius:12px;cursor:pointer;';
-  otherDiv.innerHTML = '<div style="width:40px;height:40px;border-radius:50%;background:#e8eaed;display:flex;align-items:center;justify-content:center;color:#5f6368;font-size:1.2rem;flex-shrink:0;">+</div><div style="font-size:.88rem;color:#202124;font-weight:500;">Use another account</div>';
-  otherDiv.onmouseover = function() { this.style.background = '#f8f9fa'; };
-  otherDiv.onmouseout = function() { this.style.background = ''; };
-  otherDiv.onclick = function() {
-    closeGooglePicker();
-    showToast('↗ In production this opens real Google OAuth');
-    setTimeout(function() { openModal(googleFromModal || 'signinModal'); }, 1200);
-  };
-  listEl.appendChild(otherDiv);
+  google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: 'openid email profile',
+    callback: function(tokenResponse) {
+      if (tokenResponse && tokenResponse.access_token) {
+        // Fetch user info from Google
+        fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: 'Bearer ' + tokenResponse.access_token }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(profile) {
+          var email = profile.email.toLowerCase();
+          var name = profile.name || profile.given_name || email.split('@')[0];
+          var users = loadUsers();
 
-  var picker = document.getElementById('googlePickerOverlay');
-  picker.style.display = 'flex';
+          if (!users[email]) {
+            // Auto-create account on first Google sign-in
+            users[email] = {
+              email: email,
+              name: name,
+              googleId: profile.sub,
+              picture: profile.picture || '',
+              passwordHash: '',
+              credentials: [],
+              categories: ['personal','banking','work','finance','social','shopping','entertainment'],
+              nextId: 100
+            };
+            saveUsers(users);
+            showToast('🎉 Welcome to Secure Vault, ' + name.split(' ')[0] + '!');
+          } else {
+            // Update name/picture on subsequent logins
+            users[email].name = name;
+            users[email].picture = profile.picture || users[email].picture || '';
+            saveUsers(users);
+            showToast('👋 Welcome back, ' + name.split(' ')[0] + '!');
+          }
+          loginUser(users[email]);
+        })
+        .catch(function() {
+          showToast('⚠ Could not fetch Google profile. Please try again.');
+        });
+      }
+    }
+  }).requestAccessToken();
 }
 
 function googleSelectAccount(email) {
-  closeGooglePicker();
   var users = loadUsers();
   var user = users[email];
-  if (user) {
-    loginUser(user);
-  } else {
-    showToast('Account not found');
-  }
+  if (user) { loginUser(user); }
+  else { showToast('Account not found'); }
 }
 
 function closeGooglePicker() {
-  document.getElementById('googlePickerOverlay').style.display = 'none';
+  var picker = document.getElementById('googlePickerOverlay');
+  if (picker) picker.style.display = 'none';
 }
 
 // ═══════════════════════════════════════════════════════
