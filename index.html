@@ -701,7 +701,7 @@ function handleGoogleSignIn(fromModal) {
   closeModal(fromModal);
   _supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: window.location.origin }
+    options: { redirectTo: 'https://secure-vault-lovat.vercel.app' }
   }).then(function(result) {
     if (result.error) { showToast('⚠ Google sign-in failed: ' + result.error.message); }
   });
