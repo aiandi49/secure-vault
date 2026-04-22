@@ -6,6 +6,7 @@
 <title>Secure Vault — Password Manager</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Space+Mono:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 :root{--bg:#090d18;--bg2:#0d1526;--card:#101c35;--card2:#152040;--gold:#e8b84b;--gold2:#f5d27a;--gold-dim:rgba(232,184,75,0.15);--navy:#1a3a6e;--navy-bright:#2b5ba8;--cyan:#4de8ff;--cyan-dim:rgba(77,232,255,0.12);--red:#e84b4b;--green:#4be89a;--text:#e8f0ff;--muted:#7a90b8;--border:rgba(232,184,75,0.2);--border2:rgba(77,232,255,0.15)}
@@ -584,22 +585,17 @@ footer{padding:28px 2rem;background:rgba(9,13,24,0.8);border-top:1px solid var(-
   </footer>
 </div>
 
+
 <script>
-var STORAGE_KEY = 'sv_users_v1';
-var SESSION_KEY = 'sv_session_v1';
+// ============================================================
+// SECURE VAULT — Supabase Backend
+// ============================================================
+var SUPABASE_URL = 'https://syvucckzuokmrolmfaob.supabase.co';
+var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5dnVjY2t6dW9rbXJvbG1mYW9iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4MzYzNjMsImV4cCI6MjA5MjQxMjM2M30._wj44BQQ8EMs7z4H0HgickLC3CzvYzGHSGTz7P-Q824';
 
-function loadUsers() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch(e) { return {}; } }
-function saveUsers(u) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(u)); } catch(e) {} }
-function loadSession() { try { return JSON.parse(localStorage.getItem(SESSION_KEY)) || null; } catch(e) { return null; } }
-function saveSession(s) { try { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); } catch(e) {} }
-function clearSession() { try { localStorage.removeItem(SESSION_KEY); } catch(e) {} }
+var _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-function hashPassword(pw) {
-  var h = 0;
-  for (var i = 0; i < pw.length; i++) { h = ((h << 5) - h) + pw.charCodeAt(i); h = h & h; }
-  return 'sv_' + Math.abs(h).toString(36) + '_' + pw.length;
-}
-
+// ── STATE ────────────────────────────────────────────────────
 var currentUser = null;
 var credentials = [];
 var categories = ['personal','banking','work','finance','social','shopping','entertainment'];
@@ -609,16 +605,27 @@ var deleteTargetId = null;
 var nextId = 100;
 var pwMap = {};
 
+// ── INIT ─────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
   refreshCategoryPills();
   renderCreds();
   populateCategoryDropdown();
   setupDragDrop();
-  var session = loadSession();
-  if (session && session.email) {
-    var users = loadUsers();
-    if (users[session.email]) { loginUser(users[session.email], false); }
-  }
+
+  // Listen for Supabase auth state changes (handles Google OAuth redirect too)
+  _supabase.auth.onAuthStateChange(function(event, session) {
+    if (session && session.user) {
+      loginUser(session.user, event === 'SIGNED_IN');
+    } else {
+      currentUser = null;
+      credentials = [];
+      categories = ['personal','banking','work','finance','social','shopping','entertainment'];
+      pwMap = {};
+      updateNavUI();
+      refreshCategoryPills();
+      renderCreds();
+    }
+  });
 });
 
 function requireAuth(fn) {
@@ -626,50 +633,142 @@ function requireAuth(fn) {
   fn();
 }
 
+// ── AUTH ─────────────────────────────────────────────────────
 function loginUser(user, showWelcome) {
   currentUser = user;
-  saveSession({ email: user.email });
-  var users = loadUsers();
-  var userData = users[user.email] || {};
-  credentials = userData.credentials || [];
-  credentials.forEach(function(c) { if (!c.created_at) c.created_at = new Date().toISOString(); });
-  categories = userData.categories || ['personal','banking','work','finance','social','shopping','entertainment'];
-  nextId = userData.nextId || 100;
-  updateNavUI();
-  refreshCategoryPills();
-  populateCategoryDropdown();
-  renderCreds();
-  if (showWelcome !== false) { showToast('✅ Welcome back, ' + (user.name || user.email.split('@')[0]) + '!'); }
+  var name = (user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name)) || user.email.split('@')[0];
+  var picture = (user.user_metadata && user.user_metadata.avatar_url) || '';
+  currentUser._name = name;
+  currentUser._picture = picture;
+
+  loadVaultFromSupabase(function() {
+    updateNavUI();
+    refreshCategoryPills();
+    populateCategoryDropdown();
+    renderCreds();
+    if (showWelcome) { showToast('✅ Welcome back, ' + name.split(' ')[0] + '!'); }
+  });
 }
 
-function saveVaultData() {
-  if (!currentUser) return;
-  var users = loadUsers();
-  if (!users[currentUser.email]) users[currentUser.email] = {};
-  users[currentUser.email].credentials = credentials;
-  users[currentUser.email].categories = categories;
-  users[currentUser.email].nextId = nextId;
-  users[currentUser.email].name = currentUser.name;
-  users[currentUser.email].picture = currentUser.picture || '';
-  users[currentUser.email].passwordHash = currentUser.passwordHash;
-  saveUsers(users);
+function handleSignUp() {
+  var first = document.getElementById('su-first').value.trim();
+  var last = document.getElementById('su-last').value.trim();
+  var email = document.getElementById('su-email').value.trim().toLowerCase();
+  var pass = document.getElementById('su-pass').value;
+  var errEl = document.getElementById('su-error');
+  errEl.style.display = 'none';
+  if (!first) { showErr(errEl, 'Please enter your first name.'); return; }
+  if (!email || !email.includes('@')) { showErr(errEl, 'Please enter a valid email address.'); return; }
+  if (!pass || pass.length < 6) { showErr(errEl, 'Password must be at least 6 characters.'); return; }
+
+  showToast('⏳ Creating your vault...');
+  _supabase.auth.signUp({
+    email: email,
+    password: pass,
+    options: { data: { full_name: (first + (last ? ' ' + last : '')).trim() } }
+  }).then(function(result) {
+    if (result.error) { showErr(errEl, result.error.message); return; }
+    closeModal('signupModal');
+    showToast('🎉 Vault created! Welcome, ' + first + '! Check your email to confirm.');
+  });
+}
+
+function handleSignIn() {
+  var email = document.getElementById('si-email').value.trim().toLowerCase();
+  var pass = document.getElementById('si-pass').value;
+  var errEl = document.getElementById('si-error');
+  errEl.style.display = 'none';
+  if (!email || !pass) { showErr(errEl, 'Please enter your email and password.'); return; }
+
+  showToast('⏳ Signing in...');
+  _supabase.auth.signInWithPassword({ email: email, password: pass }).then(function(result) {
+    if (result.error) { showErr(errEl, result.error.message); return; }
+    closeModal('signinModal');
+  });
+}
+
+function showErr(el, msg) { el.textContent = msg; el.style.display = 'block'; }
+
+var GOOGLE_CLIENT_ID = '567924136819-2oio3t3nt1bkgqpvd30220hasknjcpfs.apps.googleusercontent.com';
+
+function handleGoogleSignIn(fromModal) {
+  closeModal(fromModal);
+  _supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.origin }
+  }).then(function(result) {
+    if (result.error) { showToast('⚠ Google sign-in failed: ' + result.error.message); }
+  });
 }
 
 function signOut() {
-  clearSession();
-  currentUser = null;
-  credentials = [];
-  categories = ['personal','banking','work','finance','social','shopping','entertainment'];
-  activeFilter = 'all';
-  searchQuery = '';
-  pwMap = {};
-  closeModal('profileModal');
-  updateNavUI();
-  refreshCategoryPills();
-  renderCreds();
-  showToast('👋 Signed out successfully');
+  _supabase.auth.signOut().then(function() {
+    currentUser = null;
+    credentials = [];
+    categories = ['personal','banking','work','finance','social','shopping','entertainment'];
+    activeFilter = 'all';
+    searchQuery = '';
+    pwMap = {};
+    closeModal('profileModal');
+    updateNavUI();
+    refreshCategoryPills();
+    renderCreds();
+    showToast('👋 Signed out successfully');
+  });
 }
 
+// ── VAULT DATA ───────────────────────────────────────────────
+function loadVaultFromSupabase(callback) {
+  if (!currentUser) { if (callback) callback(); return; }
+
+  _supabase.from('credentials')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .order('created_at', { ascending: false })
+    .then(function(result) {
+      if (result.error) { showToast('⚠ Error loading vault: ' + result.error.message); if (callback) callback(); return; }
+      credentials = (result.data || []).map(function(row) {
+        return {
+          id: row.id,
+          title: row.title || '',
+          username: row.username_enc || '',
+          password: row.password_enc || '',
+          url: row.website_url || '',
+          notes: row.notes_enc || '',
+          category: row.category || 'personal',
+          account_number: row.account_number_enc || '',
+          expiration_date: row.expiration_date_enc || '',
+          cv: row.cvv_enc || '',
+          card_type: row.card_type || '',
+          security_questions: row.security_questions_enc || '',
+          passkey: row.passkey || '',
+          photo_front: row.photo_front_url || '',
+          photo_back: row.photo_back_url || '',
+          created_at: row.created_at || new Date().toISOString(),
+          _db_id: row.id
+        };
+      });
+
+      // Load categories
+      _supabase.from('categories')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .order('sort_order')
+        .then(function(catResult) {
+          if (catResult.data && catResult.data.length > 0) {
+            categories = catResult.data.map(function(c) { return c.name; });
+          }
+          if (callback) callback();
+        });
+    });
+}
+
+function saveVaultData() {
+  // No-op: Supabase saves happen in real-time on each action
+  // Kept for compatibility with import function
+}
+
+// ── PROFILE ──────────────────────────────────────────────────
 function updateNavUI() {
   var signedIn = !!currentUser;
   document.getElementById('navSignInBtn').style.display = signedIn ? 'none' : '';
@@ -678,11 +777,11 @@ function updateNavUI() {
   var chip = document.getElementById('navUserChip');
   if (signedIn) {
     chip.classList.add('visible');
-    var name = currentUser.name || currentUser.email.split('@')[0];
+    var name = currentUser._name || currentUser.email.split('@')[0];
     document.getElementById('navUserName').textContent = name;
     var avatarEl = document.getElementById('navAvatarCircle');
-    if (currentUser.picture) {
-      avatarEl.innerHTML = '<img src="' + currentUser.picture + '" style="width:100%;height:100%;object-fit:cover;" />';
+    if (currentUser._picture) {
+      avatarEl.innerHTML = '<img src="' + currentUser._picture + '" style="width:100%;height:100%;object-fit:cover;" />';
     } else {
       avatarEl.textContent = name.charAt(0).toUpperCase();
     }
@@ -706,88 +805,17 @@ function updateNavUI() {
   }
 }
 
-function handleSignUp() {
-  var first = document.getElementById('su-first').value.trim();
-  var last = document.getElementById('su-last').value.trim();
-  var email = document.getElementById('su-email').value.trim().toLowerCase();
-  var pass = document.getElementById('su-pass').value;
-  var errEl = document.getElementById('su-error');
-  errEl.style.display = 'none';
-  if (!first) { showErr(errEl, 'Please enter your first name.'); return; }
-  if (!email || !email.includes('@')) { showErr(errEl, 'Please enter a valid email address.'); return; }
-  if (!pass || pass.length < 6) { showErr(errEl, 'Password must be at least 6 characters.'); return; }
-  var users = loadUsers();
-  if (users[email]) { showErr(errEl, 'An account with this email already exists. Please sign in.'); return; }
-  var user = { email: email, name: first + (last ? ' ' + last : ''), passwordHash: hashPassword(pass), picture: '', credentials: [], categories: ['personal','banking','work','finance','social','shopping','entertainment'], nextId: 100 };
-  users[email] = user;
-  saveUsers(users);
-  closeModal('signupModal');
-  loginUser(user, false);
-  showToast('🎉 Vault created! Welcome, ' + first + '!');
-}
-
-function handleSignIn() {
-  var email = document.getElementById('si-email').value.trim().toLowerCase();
-  var pass = document.getElementById('si-pass').value;
-  var errEl = document.getElementById('si-error');
-  errEl.style.display = 'none';
-  if (!email || !pass) { showErr(errEl, 'Please enter your email and password.'); return; }
-  var users = loadUsers();
-  var user = users[email];
-  if (!user) { showErr(errEl, 'No account found with that email. Please create a vault first.'); return; }
-  if (user.passwordHash !== hashPassword(pass)) { showErr(errEl, 'Incorrect password. Please try again.'); return; }
-  closeModal('signinModal');
-  loginUser(user);
-}
-
-function showErr(el, msg) { el.textContent = msg; el.style.display = 'block'; }
-
-var GOOGLE_CLIENT_ID = '567924136819-2oio3t3nt1bkgqpvd30220hasknjcpfs.apps.googleusercontent.com';
-
-function handleGoogleSignIn(fromModal) {
-  closeModal(fromModal);
-  if (typeof google === 'undefined' || !google.accounts) { showToast('⚠ Google Sign-In is loading, please try again.'); return; }
-  google.accounts.oauth2.initTokenClient({
-    client_id: GOOGLE_CLIENT_ID,
-    scope: 'openid email profile',
-    callback: function(tokenResponse) {
-      if (tokenResponse && tokenResponse.access_token) {
-        fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: 'Bearer ' + tokenResponse.access_token } })
-        .then(function(r) { return r.json(); })
-        .then(function(profile) {
-          var email = profile.email.toLowerCase();
-          var name = profile.name || profile.given_name || email.split('@')[0];
-          var picture = profile.picture || '';
-          var users = loadUsers();
-          if (!users[email]) {
-            users[email] = { email: email, name: name, googleId: profile.sub, picture: picture, passwordHash: '', credentials: [], categories: ['personal','banking','work','finance','social','shopping','entertainment'], nextId: 100 };
-            saveUsers(users);
-            showToast('🎉 Welcome to Secure Vault, ' + name.split(' ')[0] + '!');
-          } else {
-            users[email].name = name;
-            users[email].picture = picture || users[email].picture || '';
-            saveUsers(users);
-            showToast('👋 Welcome back, ' + name.split(' ')[0] + '!');
-          }
-          loginUser(users[email]);
-        })
-        .catch(function() { showToast('⚠ Could not fetch Google profile. Please try again.'); });
-      }
-    }
-  }).requestAccessToken();
-}
-
 function openProfile() {
   if (!currentUser) { openModal('signinModal'); return; }
-  var name = currentUser.name || '';
+  var name = currentUser._name || '';
   document.getElementById('pf-name').value = name;
   document.getElementById('pf-email').value = currentUser.email;
   document.getElementById('pf-pass').value = '';
   document.getElementById('pf-display-name').textContent = name || currentUser.email.split('@')[0];
   document.getElementById('pf-display-email').textContent = currentUser.email;
   var pfAv = document.getElementById('pf-avatar-circle');
-  if (currentUser.picture) {
-    pfAv.innerHTML = '<img src="' + currentUser.picture + '" style="width:100%;height:100%;object-fit:cover;" />';
+  if (currentUser._picture) {
+    pfAv.innerHTML = '<img src="' + currentUser._picture + '" style="width:100%;height:100%;object-fit:cover;" />';
   } else {
     pfAv.textContent = (name || '?').charAt(0).toUpperCase();
   }
@@ -798,27 +826,44 @@ function saveProfile() {
   if (!currentUser) return;
   var newName = document.getElementById('pf-name').value.trim();
   var newPass = document.getElementById('pf-pass').value;
-  currentUser.name = newName || currentUser.name;
-  if (newPass && newPass.length >= 6) { currentUser.passwordHash = hashPassword(newPass); }
-  saveVaultData();
-  closeModal('profileModal');
-  updateNavUI();
-  showToast('✅ Profile updated');
+
+  var updates = {};
+  if (newName) { updates.full_name = newName; currentUser._name = newName; }
+
+  var promises = [];
+
+  if (Object.keys(updates).length > 0) {
+    promises.push(_supabase.auth.updateUser({ data: updates }));
+  }
+  if (newPass && newPass.length >= 6) {
+    promises.push(_supabase.auth.updateUser({ password: newPass }));
+  }
+
+  Promise.all(promises).then(function() {
+    closeModal('profileModal');
+    updateNavUI();
+    showToast('✅ Profile updated');
+  }).catch(function(err) {
+    showToast('⚠ Update failed: ' + err.message);
+  });
 }
 
+// ── MODALS ───────────────────────────────────────────────────
 function openModal(id) { document.getElementById(id).classList.add('open'); document.body.style.overflow = 'hidden'; }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); document.body.style.overflow = ''; }
 document.addEventListener('click', function(e) {
-  if (e.target && e.target.classList && e.target.classList.contains('modal-overlay')) {
-    e.target.classList.remove('open'); document.body.style.overflow = '';
+  if (e.target.classList.contains('modal-overlay')) {
+    e.target.classList.remove('open');
+    document.body.style.overflow = '';
   }
 });
 
+// ── FILTER & RENDER ──────────────────────────────────────────
 function getFiltered() {
   return credentials.filter(function(c) {
     var matchCat = activeFilter === 'all' || c.category === activeFilter;
     var q = searchQuery.toLowerCase();
-    var matchSearch = !q || c.title.toLowerCase().indexOf(q) > -1 || c.username.toLowerCase().indexOf(q) > -1 || (c.notes||'').toLowerCase().indexOf(q) > -1 || (c.url||'').toLowerCase().indexOf(q) > -1;
+    var matchSearch = !q || (c.title||'').toLowerCase().includes(q) || (c.username||'').toLowerCase().includes(q) || (c.url||'').toLowerCase().includes(q) || (c.notes||'').toLowerCase().includes(q);
     return matchCat && matchSearch;
   });
 }
@@ -888,7 +933,7 @@ function credHTML(c) {
         extraFields +
         (createdStr ? '<div class="field"><div class="field-label">Created</div><div class="field-value" style="font-family:\'Inter\',sans-serif;font-size:.82rem;color:var(--muted);">' + createdStr + '</div></div>' : '') +
       '</div>' +
-      '<div class="cred-actions"><button class="btn-field btn-edit" onclick="openEditModal(' + c.id + ')">✏️ Edit</button><button class="btn-field btn-delete" onclick="openDeleteModal(' + c.id + ')">🗑 Delete</button></div>' +
+      '<div class="cred-actions"><button class="btn-field btn-edit" onclick="openEditModal(\'' + c.id + '\')">✏️ Edit</button><button class="btn-field btn-delete" onclick="openDeleteModal(\'' + c.id + '\')">🗑 Delete</button></div>' +
     '</div>' +
   '</div>';
 }
@@ -902,7 +947,6 @@ function toggleCred(header) { header.closest('.cred-item').classList.toggle('ope
 
 function togglePw(id, btn) {
   var el = document.getElementById(id);
-  if (!el) return;
   if (el.classList.contains('masked')) { el.textContent = pwMap[id] || ''; el.classList.remove('masked'); btn.textContent = '🙈 Hide'; }
   else { el.textContent = '••••••••••••••'; el.classList.add('masked'); btn.textContent = '👁 Show'; }
 }
@@ -910,17 +954,13 @@ function copyPw(pwId) { copyText(pwMap[pwId] || '', 'Password'); }
 
 function toggleInputPw(id, btn) {
   var el = document.getElementById(id);
-  if (!el) return;
-  if (el.type === 'password') { el.type = 'text'; btn.textContent = '🙈'; } else { el.type = 'password'; btn.textContent = '👁'; }
+  if (el.type === 'password') { el.type = 'text'; btn.textContent = '🙈'; }
+  else { el.type = 'password'; btn.textContent = '👁'; }
 }
 
 function copyText(text, label) {
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(function() { showToast('📋 ' + (label||'') + ' copied!'); });
-  } else {
-    var ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
-    showToast('📋 ' + (label||'') + ' copied!');
-  }
+  if (!text) { showToast('Nothing to copy'); return; }
+  navigator.clipboard.writeText(text).then(function() { showToast('📋 ' + (label||'') + ' copied!'); });
 }
 
 function filterCat(btn, cat) {
@@ -931,81 +971,93 @@ function searchCreds(q) { searchQuery = q; renderCreds(); }
 
 function refreshCategoryPills() {
   var container = document.getElementById('catPills');
-  var html = '<button class="category-pill' + (activeFilter==='all'?' active':'') + '" onclick="filterCat(this,\'all\')">All</button>';
+  if (!container) return;
+  var pills = '<button class="category-pill' + (activeFilter==='all'?' active':'') + '" onclick="filterCat(this,\'all\')">All</button>';
   categories.forEach(function(cat) {
-    html += '<button class="category-pill' + (activeFilter===cat?' active':'') + '" onclick="filterCat(this,\'' + cat + '\')">' + capitalize(cat) + '</button>';
+    pills += '<button class="category-pill' + (activeFilter===cat?' active':'') + '" onclick="filterCat(this,\'' + cat + '\')">' + capitalize(cat) + '</button>';
   });
-  container.innerHTML = html;
+  container.innerHTML = pills;
 }
+
 function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
 
 function openCatsModal() { renderCatsList(); openModal('catsModal'); }
 function renderCatsList() {
-  var el = document.getElementById('cats-list');
+  var el = document.getElementById('catsList');
+  if (!el) return;
   el.innerHTML = categories.map(function(cat, i) {
-    var isDefault = ['personal','banking','work'].indexOf(cat) > -1;
-    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:rgba(9,13,24,0.5);border-radius:8px;margin-bottom:8px;border:1px solid var(--border2);">' +
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);">' +
       '<span style="font-size:.9rem;">' + capitalize(cat) + '</span>' +
-      (isDefault ? '<span style="font-size:.72rem;color:var(--muted);">Default</span>' : '<button class="btn-field btn-delete" style="padding:4px 10px;" onclick="deleteCategory(' + i + ')">✕</button>') +
-    '</div>';
+      '<button class="btn-field btn-delete" onclick="deleteCategory(' + i + ')" style="padding:4px 10px;font-size:.75rem;">✕</button></div>';
   }).join('');
 }
+
 function addCategory() {
-  var input = document.getElementById('new-cat-input');
-  var val = input.value.trim().toLowerCase().replace(/\s+/g,'-');
+  var input = document.getElementById('newCatInput');
+  var val = input.value.trim().toLowerCase();
   if (!val) return;
   if (categories.indexOf(val) > -1) { showToast('⚠ Category already exists'); return; }
-  categories.push(val); input.value = ''; renderCatsList(); populateCategoryDropdown(); saveVaultData();
-  showToast('✅ Category "' + capitalize(val) + '" added');
+  categories.push(val);
+  input.value = '';
+  renderCatsList();
+  populateCategoryDropdown();
+  refreshCategoryPills();
+  // Save to Supabase
+  if (currentUser) {
+    _supabase.from('categories').insert([{ user_id: currentUser.id, name: val, sort_order: categories.length }]).then(function(){});
+  }
 }
+
 function deleteCategory(idx) {
-  var cat = categories[idx]; categories.splice(idx, 1); renderCatsList(); populateCategoryDropdown(); saveVaultData();
-  showToast('🗑 Category "' + capitalize(cat) + '" removed');
+  var cat = categories[idx];
+  categories.splice(idx, 1);
+  renderCatsList();
+  populateCategoryDropdown();
+  refreshCategoryPills();
+  if (currentUser) {
+    _supabase.from('categories').delete().eq('user_id', currentUser.id).eq('name', cat).then(function(){});
+  }
 }
+
 function populateCategoryDropdown() {
   var sel = document.getElementById('add-category');
   if (!sel) return;
   sel.innerHTML = categories.map(function(cat) { return '<option value="' + cat + '">' + capitalize(cat) + '</option>'; }).join('');
 }
 
+// ── ADD / EDIT CREDENTIAL ────────────────────────────────────
 function openAddModal() {
-  document.getElementById('addModal-title').textContent = '＋ ADD CREDENTIAL';
-  document.getElementById('add-save-btn').textContent = 'Save Credential';
-  ['add-title','add-username','add-url','add-notes','add-passkey','add-account-number','add-expiration','add-cv','add-security-questions'].forEach(function(id){ document.getElementById(id).value = ''; });
-  document.getElementById('add-pass').value = ''; document.getElementById('add-pass').type = 'password';
-  document.getElementById('add-card-type').value = '';
-  document.getElementById('add-photo-front').value = ''; document.getElementById('add-photo-back').value = '';
-  document.getElementById('prev-front').style.display = 'none'; document.getElementById('prev-back').style.display = 'none';
+  document.getElementById('add-modal-title').textContent = '＋ ADD CREDENTIAL';
   document.getElementById('add-edit-index').value = '';
-  document.getElementById('add-category').value = categories[0] || 'personal';
-  resetStrength('add-strength'); openModal('addModal');
+  ['add-title','add-username','add-url','add-notes','add-passkey','add-account-number','add-expiration','add-cv','add-security-questions'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+  var ap = document.getElementById('add-pass'); if(ap){ap.value='';ap.type='password';}
+  var ct = document.getElementById('add-card-type'); if(ct) ct.value='';
+  populateCategoryDropdown();
+  resetStrength('add-strength');
+  ['front-preview','back-preview'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});
+  openModal('addModal');
 }
 
 function openEditModal(id) {
-  id = parseInt(id, 10);
   var c = null;
-  for (var i = 0; i < credentials.length; i++) { if (credentials[i].id === id) { c = credentials[i]; break; } }
-  if (!c) { showToast('⚠ Credential not found'); return; }
-  document.getElementById('addModal-title').textContent = '✏️ EDIT CREDENTIAL';
-  document.getElementById('add-save-btn').textContent = 'Update Credential';
-  document.getElementById('add-title').value = c.title;
-  document.getElementById('add-username').value = c.username;
-  document.getElementById('add-pass').value = c.password; document.getElementById('add-pass').type = 'password';
+  for (var i = 0; i < credentials.length; i++) { if (credentials[i].id == id) { c = credentials[i]; break; } }
+  if (!c) return;
+  document.getElementById('add-modal-title').textContent = '✏️ EDIT CREDENTIAL';
+  document.getElementById('add-edit-index').value = c.id;
+  document.getElementById('add-title').value = c.title || '';
+  document.getElementById('add-username').value = c.username || '';
+  var ap = document.getElementById('add-pass'); ap.value = c.password || ''; ap.type = 'password';
   document.getElementById('add-url').value = c.url || '';
   document.getElementById('add-notes').value = c.notes || '';
   document.getElementById('add-passkey').value = c.passkey || '';
   document.getElementById('add-account-number').value = c.account_number || '';
   document.getElementById('add-expiration').value = c.expiration_date || '';
   document.getElementById('add-cv').value = c.cv || '';
-  document.getElementById('add-card-type').value = c.card_type || '';
   document.getElementById('add-security-questions').value = c.security_questions || '';
-  document.getElementById('add-photo-front').value = ''; document.getElementById('add-photo-back').value = '';
-  var pf = document.getElementById('prev-front'); var pb = document.getElementById('prev-back');
-  if (c.photo_front) { pf.style.display='block'; pf.querySelector('img').src=c.photo_front; } else { pf.style.display='none'; }
-  if (c.photo_back) { pb.style.display='block'; pb.querySelector('img').src=c.photo_back; } else { pb.style.display='none'; }
-  document.getElementById('add-edit-index').value = id;
+  populateCategoryDropdown();
   document.getElementById('add-category').value = c.category || categories[0];
-  checkStrength(document.getElementById('add-pass'), 'add-strength');
+  var ct = document.getElementById('add-card-type'); if(ct) ct.value = c.card_type || '';
+  checkStrength(ap, 'add-strength');
   openModal('addModal');
 }
 
@@ -1025,47 +1077,115 @@ function saveCredential() {
   var security_questions = document.getElementById('add-security-questions').value.trim();
   if (!title) { showToast('⚠ Please enter a title'); return; }
   if (!password) { showToast('⚠ Please enter a password'); return; }
+
   var frontFile = document.getElementById('add-photo-front').files[0];
   var backFile = document.getElementById('add-photo-back').files[0];
-  function doSave(photo_front_new, photo_back_new) {
+
+  showToast('⏳ Saving...');
+
+  function doSave(photo_front_url, photo_back_url) {
+    var payload = {
+      user_id: currentUser.id,
+      title: title,
+      username_enc: username,
+      password_enc: password,
+      website_url: url,
+      notes_enc: notes,
+      category: category,
+      passkey: passkey,
+      account_number_enc: account_number,
+      expiration_date_enc: expiration_date,
+      cvv_enc: cv,
+      card_type: card_type,
+      security_questions_enc: security_questions
+    };
+    if (photo_front_url !== null) payload.photo_front_url = photo_front_url;
+    if (photo_back_url !== null) payload.photo_back_url = photo_back_url;
+
     if (editId) {
-      var id = parseInt(editId, 10);
-      for (var i = 0; i < credentials.length; i++) {
-        if (credentials[i].id === id) {
-          var existing = credentials[i];
-          credentials[i] = { id: id, title: title, username: username, password: password, url: url, notes: notes, category: category, passkey: passkey, account_number: account_number, expiration_date: expiration_date, cv: cv, card_type: card_type, security_questions: security_questions, photo_front: photo_front_new !== null ? photo_front_new : (existing.photo_front || ''), photo_back: photo_back_new !== null ? photo_back_new : (existing.photo_back || ''), created_at: existing.created_at || new Date().toISOString() };
-          break;
+      // Update existing
+      delete payload.user_id;
+      _supabase.from('credentials').update(payload).eq('id', editId).select().then(function(result) {
+        if (result.error) { showToast('⚠ Error: ' + result.error.message); return; }
+        // Update local array
+        for (var i = 0; i < credentials.length; i++) {
+          if (credentials[i].id == editId) {
+            credentials[i] = {
+              id: editId, title: title, username: username, password: password,
+              url: url, notes: notes, category: category, passkey: passkey,
+              account_number: account_number, expiration_date: expiration_date,
+              cv: cv, card_type: card_type, security_questions: security_questions,
+              photo_front: photo_front_url !== null ? photo_front_url : credentials[i].photo_front,
+              photo_back: photo_back_url !== null ? photo_back_url : credentials[i].photo_back,
+              created_at: credentials[i].created_at
+            };
+            break;
+          }
         }
-      }
-      showToast('✅ Credential updated');
+        showToast('✅ Credential updated'); closeModal('addModal'); renderCreds();
+      });
     } else {
-      credentials.push({ id: nextId++, title: title, username: username, password: password, url: url, notes: notes, category: category, passkey: passkey, account_number: account_number, expiration_date: expiration_date, cv: cv, card_type: card_type, security_questions: security_questions, photo_front: photo_front_new || '', photo_back: photo_back_new || '', created_at: new Date().toISOString() });
-      showToast('✅ Credential saved');
+      // Insert new
+      _supabase.from('credentials').insert([payload]).select().then(function(result) {
+        if (result.error) { showToast('⚠ Error: ' + result.error.message); return; }
+        var row = result.data[0];
+        credentials.unshift({
+          id: row.id, title: title, username: username, password: password,
+          url: url, notes: notes, category: category, passkey: passkey,
+          account_number: account_number, expiration_date: expiration_date,
+          cv: cv, card_type: card_type, security_questions: security_questions,
+          photo_front: payload.photo_front_url || '',
+          photo_back: payload.photo_back_url || '',
+          created_at: row.created_at
+        });
+        showToast('✅ Credential saved'); closeModal('addModal'); renderCreds();
+      });
     }
-    saveVaultData(); closeModal('addModal'); renderCreds();
   }
-  function readPhoto(file, cb) {
+
+  // Handle photo uploads to Supabase Storage
+  function uploadPhoto(file, side, cb) {
     if (!file) { cb(null); return; }
-    var r = new FileReader(); r.onload = function(e) { cb(e.target.result); }; r.readAsDataURL(file);
+    var ext = file.name.split('.').pop();
+    var path = currentUser.id + '/' + Date.now() + '-' + side + '.' + ext;
+    _supabase.storage.from('card-photos').upload(path, file, { upsert: true }).then(function(result) {
+      if (result.error) { cb(null); return; }
+      // Get signed URL
+      _supabase.storage.from('card-photos').createSignedUrl(path, 60 * 60 * 24 * 365).then(function(urlResult) {
+        cb(urlResult.data ? urlResult.data.signedUrl : null);
+      });
+    });
   }
-  readPhoto(frontFile, function(f) { readPhoto(backFile, function(b) { doSave(f, b); }); });
+
+  uploadPhoto(frontFile, 'front', function(frontUrl) {
+    uploadPhoto(backFile, 'back', function(backUrl) {
+      doSave(frontUrl, backUrl);
+    });
+  });
 }
 
+// ── DELETE ───────────────────────────────────────────────────
 function openDeleteModal(id) {
-  id = parseInt(id, 10);
   var c = null;
-  for (var i = 0; i < credentials.length; i++) { if (credentials[i].id === id) { c = credentials[i]; break; } }
+  for (var i = 0; i < credentials.length; i++) { if (credentials[i].id == id) { c = credentials[i]; break; } }
   if (!c) return;
   deleteTargetId = id;
   document.getElementById('delete-name-label').textContent = '"' + c.title + '"';
   openModal('deleteModal');
 }
+
 function confirmDelete() {
-  credentials = credentials.filter(function(x) { return x.id !== deleteTargetId; });
-  deleteTargetId = null; saveVaultData(); closeModal('deleteModal'); renderCreds();
-  showToast('🗑 Credential deleted');
+  _supabase.from('credentials').delete().eq('id', deleteTargetId).then(function(result) {
+    if (result.error) { showToast('⚠ Error deleting: ' + result.error.message); return; }
+    credentials = credentials.filter(function(x) { return x.id != deleteTargetId; });
+    deleteTargetId = null;
+    closeModal('deleteModal');
+    renderCreds();
+    showToast('🗑 Credential deleted');
+  });
 }
 
+// ── EXPORT ───────────────────────────────────────────────────
 var EXPORT_HEADERS = ['Account Name','Account Number','Expiration Date','CV','Credit or Debit','Photo Front','Photo Back','Username','Password','Website','Category','Notes','Created','Security Questions','Passkey'];
 function exportExcel() {
   if (!currentUser) { showToast('🔐 Please sign in first'); return; }
@@ -1073,7 +1193,7 @@ function exportExcel() {
   credentials.forEach(function(c) {
     var created = '';
     if (c.created_at) { try { var d = new Date(c.created_at); var pad = function(n){return n<10?'0'+n:n;}; created = d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes()); } catch(e) { created = c.created_at; } }
-    rows.push([c.title||'',c.account_number||'',c.expiration_date||'',c.cv||'',c.card_type||'',c.photo_front?'[image stored]':'',c.photo_back?'[image stored]':'',c.username||'',c.password||'',c.url||'',c.category||'',c.notes||'',created,c.security_questions||'',c.passkey||'']);
+    rows.push([c.title||'',c.account_number||'',c.expiration_date||'',c.cv||'',c.card_type||'',c.photo_front?'[stored in vault]':'',c.photo_back?'[stored in vault]':'',c.username||'',c.password||'',c.url||'',c.category||'',c.notes||'',created,c.security_questions||'',c.passkey||'']);
   });
   var wb = XLSX.utils.book_new();
   var ws = XLSX.utils.aoa_to_sheet(rows);
@@ -1083,6 +1203,7 @@ function exportExcel() {
   showToast('⬇ Excel export downloaded!');
 }
 
+// ── IMPORT ───────────────────────────────────────────────────
 function setupDragDrop() {
   var zone = document.getElementById('dropZone');
   if (!zone) return;
@@ -1094,10 +1215,12 @@ function setupDragDrop() {
     var file = e.dataTransfer.files[0]; if (file) processImportFile(file);
   });
 }
+
 function handleFileImport(input) {
   if (!currentUser) { showToast('🔐 Please sign in first'); openModal('signinModal'); return; }
   var file = input.files[0]; if (file) processImportFile(file); input.value = '';
 }
+
 function processImportFile(file) {
   var name = file.name.toLowerCase();
   if (name.endsWith('.csv')) {
@@ -1110,35 +1233,56 @@ function processImportFile(file) {
     }; reader2.readAsArrayBuffer(file);
   } else { showImportResult('❌','Unsupported file type','Please use a .csv or .xlsx file.'); }
 }
+
 function parseCSVToRows(text) { return text.trim().split('\n').filter(function(l){return l.trim();}).map(function(l){return parseCSVLine(l);}); }
+
 function importFromRows(rows) {
   if (!rows || rows.length < 2) { showImportResult('❌','Empty or invalid file','Must have a header row and at least one data row.'); return; }
   var headerRow = rows[0].map(function(h){ return String(h).trim().toLowerCase(); });
   var dataRows = rows.slice(1);
   function col(names) { for (var i=0;i<names.length;i++){var idx=headerRow.indexOf(names[i].toLowerCase());if(idx>-1)return idx;} return -1; }
-  var iTitle=col(['account name','title','name']),iUser=col(['username','email','user']),iPass=col(['password','pass']),iUrl=col(['website','url','site']),iCat=col(['category','cat']),iNotes=col(['notes','note']),iAccNum=col(['account number','accountnumber']),iExp=col(['expiration date','expiration','exp date','expiry']),iCv=col(['cv','cvv','cvc']),iCard=col(['credit or debit','card type','cardtype']),iSec=col(['security questions','security question','security']),iPasskey=col(['passkey']),iCreated=col(['created','created at','date']);
+  var iTitle=col(['account name','title','name']),iUser=col(['username','email','user']),iPass=col(['password','pass']),iUrl=col(['website','url','site']),iCat=col(['category','cat']),iNotes=col(['notes','note']),iAccNum=col(['account number','accountnumber']),iExp=col(['expiration date','expiration','exp date','expiry']),iCv=col(['cv','cvv','cvc']),iCard=col(['credit or debit','card type','cardtype']),iSec=col(['security questions','security question','security']),iPasskey=col(['passkey']);
   if (iTitle===-1&&iPass===-1){iTitle=0;iUser=1;iPass=2;iUrl=3;iCat=4;iNotes=5;dataRows=rows;}
-  var added=0,skipped=0;
+  var toInsert = [];
+  var skipped = 0;
   dataRows.forEach(function(cols){
-    var g=function(i){return i>-1&&cols[i]?String(cols[i]).trim():'';};
+    var g=function(i){return i>-1&&cols[i]?String(cols[i]).trim():'';}
     var title=g(iTitle),password=g(iPass);
     if(!title||!password){skipped++;return;}
     var category=(g(iCat)||'personal').toLowerCase();
     var cat=categories.indexOf(category)>-1?category:'other';
-    if(categories.indexOf('other')===-1&&cat==='other')categories.push('other');
-    credentials.push({id:nextId++,title:title,username:g(iUser),password:password,url:g(iUrl),notes:g(iNotes),category:cat,account_number:g(iAccNum),expiration_date:g(iExp),cv:g(iCv),card_type:g(iCard),security_questions:g(iSec),passkey:g(iPasskey),photo_front:'',photo_back:'',created_at:g(iCreated)||new Date().toISOString()});
-    added++;
+    toInsert.push({
+      user_id: currentUser.id,
+      title: title, username_enc: g(iUser), password_enc: password,
+      website_url: g(iUrl), notes_enc: g(iNotes), category: cat,
+      account_number_enc: g(iAccNum), expiration_date_enc: g(iExp),
+      cvv_enc: g(iCv), card_type: g(iCard), security_questions_enc: g(iSec),
+      passkey: g(iPasskey)
+    });
   });
-  saveVaultData();renderCreds();refreshCategoryPills();populateCategoryDropdown();
-  showImportResult('✅',added+' credential'+(added!==1?'s':'')+' imported',skipped>0?skipped+' row'+(skipped!==1?'s':'')+' skipped (missing title or password).':'All rows imported successfully!');
+
+  if (toInsert.length === 0) { showImportResult('❌','Nothing to import','All rows were missing title or password.'); return; }
+
+  showToast('⏳ Importing ' + toInsert.length + ' credentials...');
+  _supabase.from('credentials').insert(toInsert).select().then(function(result) {
+    if (result.error) { showImportResult('❌','Import failed', result.error.message); return; }
+    // Reload vault fresh from DB
+    loadVaultFromSupabase(function() {
+      refreshCategoryPills(); populateCategoryDropdown(); renderCreds();
+      showImportResult('✅', toInsert.length + ' credential' + (toInsert.length!==1?'s':'') + ' imported', skipped > 0 ? skipped + ' rows skipped (missing title or password).' : 'All rows imported successfully!');
+    });
+  });
 }
+
 function parseCSVLine(line) {
   var result=[],current='',inQuotes=false;
   for(var i=0;i<line.length;i++){var ch=line[i];if(ch==='"'&&inQuotes&&line[i+1]==='"'){current+='"';i++;}else if(ch==='"'){inQuotes=!inQuotes;}else if(ch===','&&!inQuotes){result.push(current);current='';}else{current+=ch;}}
   result.push(current);return result;
 }
+
 function showImportResult(icon,summary,detail){document.getElementById('import-icon').textContent=icon;document.getElementById('import-summary').textContent=summary;document.getElementById('import-detail').textContent=detail||'';openModal('importModal');}
 
+// ── PASSWORD GEN & STRENGTH ──────────────────────────────────
 function generatePassword() {
   var chars='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{}|;:,.?';
   var pw='',arr=new Uint32Array(20);crypto.getRandomValues(arr);
@@ -1158,6 +1302,7 @@ function checkStrength(input,meterId){
 }
 function resetStrength(meterId){var container=document.getElementById(meterId),segs=container?container.querySelectorAll('.strength-seg'):null;if(segs)segs.forEach(function(s){s.style.background='rgba(255,255,255,0.08)';});}
 
+// ── TOAST & KEYBOARD ─────────────────────────────────────────
 var toastTimer;
 function showToast(msg){var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(function(){t.classList.remove('show');},2800);}
 
