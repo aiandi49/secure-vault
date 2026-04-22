@@ -618,6 +618,13 @@ document.addEventListener('DOMContentLoaded', function() {
   populateCategoryDropdown();
   setupDragDrop();
 
+
+  // Restore session immediately on page load (handles Google OAuth redirect)
+  _supabase.auth.getSession().then(function(result) {
+    if (result.data && result.data.session && result.data.session.user) {
+      loginUser(result.data.session.user, false);
+    }
+  });
   // Listen for Supabase auth state changes (handles Google OAuth redirect too)
   _supabase.auth.onAuthStateChange(function(event, session) {
     if (session && session.user) {
@@ -989,7 +996,7 @@ function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; 
 
 function openCatsModal() { renderCatsList(); openModal('catsModal'); }
 function renderCatsList() {
-  var el = document.getElementById('catsList');
+  var el = document.getElementById('cats-list');
   if (!el) return;
   el.innerHTML = categories.map(function(cat, i) {
     return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);">' +
@@ -999,7 +1006,7 @@ function renderCatsList() {
 }
 
 function addCategory() {
-  var input = document.getElementById('newCatInput');
+  var input = document.getElementById('new-cat-input');
   var val = input.value.trim().toLowerCase();
   if (!val) return;
   if (categories.indexOf(val) > -1) { showToast('⚠ Category already exists'); return; }
@@ -1033,14 +1040,15 @@ function populateCategoryDropdown() {
 
 // ── ADD / EDIT CREDENTIAL ────────────────────────────────────
 function openAddModal() {
-  document.getElementById('add-modal-title').textContent = '＋ ADD CREDENTIAL';
+  var titleEl = document.getElementById('addModal-title');
+  if (titleEl) titleEl.textContent = '＋ ADD CREDENTIAL';
   document.getElementById('add-edit-index').value = '';
   ['add-title','add-username','add-url','add-notes','add-passkey','add-account-number','add-expiration','add-cv','add-security-questions'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
   var ap = document.getElementById('add-pass'); if(ap){ap.value='';ap.type='password';}
   var ct = document.getElementById('add-card-type'); if(ct) ct.value='';
   populateCategoryDropdown();
   resetStrength('add-strength');
-  ['front-preview','back-preview'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});
+  ['prev-front','prev-back'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});
   openModal('addModal');
 }
 
@@ -1048,7 +1056,8 @@ function openEditModal(id) {
   var c = null;
   for (var i = 0; i < credentials.length; i++) { if (credentials[i].id == id) { c = credentials[i]; break; } }
   if (!c) return;
-  document.getElementById('add-modal-title').textContent = '✏️ EDIT CREDENTIAL';
+  var titleEl2 = document.getElementById('addModal-title');
+  if (titleEl2) titleEl2.textContent = '✏️ EDIT CREDENTIAL';
   document.getElementById('add-edit-index').value = c.id;
   document.getElementById('add-title').value = c.title || '';
   document.getElementById('add-username').value = c.username || '';
