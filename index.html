@@ -7,7 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Space+Mono:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
+
 <style>
 :root{--bg:#090d18;--bg2:#0d1526;--card:#101c35;--card2:#152040;--gold:#e8b84b;--gold2:#f5d27a;--gold-dim:rgba(232,184,75,0.15);--navy:#1a3a6e;--navy-bright:#2b5ba8;--cyan:#4de8ff;--cyan-dim:rgba(77,232,255,0.12);--red:#e84b4b;--green:#4be89a;--text:#e8f0ff;--muted:#7a90b8;--border:rgba(232,184,75,0.2);--border2:rgba(77,232,255,0.15)}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -164,12 +164,13 @@ select.form-input{appearance:none;cursor:pointer}
 .pw-toggle:hover{color:var(--gold)}
 .strength-row{display:flex;gap:4px;margin-top:8px}
 .strength-seg{flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,0.08);transition:background .3s}
-.btn-google{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:11px 20px;background:#fff;border:1px solid #dadce0;border-radius:10px;color:#3c4043;font-family:'Inter',sans-serif;font-size:.92rem;font-weight:600;cursor:pointer;transition:all .2s;box-shadow:0 1px 4px rgba(0,0,0,0.15)}
-.btn-google:hover{background:#f8f9fa;box-shadow:0 2px 8px rgba(0,0,0,0.2);border-color:#bdc1c6}
-.btn-google svg{flex-shrink:0}
+
 .or-divider{display:flex;align-items:center;gap:12px;margin:20px 0;color:var(--muted);font-size:.8rem}
 .or-divider::before,.or-divider::after{content:'';flex:1;height:1px;background:rgba(255,255,255,0.08)}
 .google-verified-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:8px;background:rgba(75,232,154,0.08);border:1px solid rgba(75,232,154,0.25);font-size:.75rem;color:var(--green);margin-bottom:20px;width:100%;justify-content:center}
+.btn-google{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;padding:13px 20px;background:#fff;border:1px solid #dadce0;border-radius:10px;color:#3c4043;font-family:'Inter',sans-serif;font-size:.95rem;font-weight:600;cursor:pointer;transition:all .2s;box-shadow:0 1px 4px rgba(0,0,0,0.15);margin-bottom:4px;}
+.btn-google:hover{background:#f8f9fa;box-shadow:0 2px 10px rgba(0,0,0,0.2);border-color:#bdc1c6;}
+.btn-google svg{flex-shrink:0;}
 .profile-avatar-lg{width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--cyan));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.8rem;color:var(--bg);flex-shrink:0;overflow:hidden}
 .toast{position:fixed;bottom:32px;left:50%;transform:translateX(-50%) translateY(80px);background:linear-gradient(135deg,var(--card),var(--card2));border:1px solid var(--border);border-radius:12px;padding:12px 24px;font-size:.88rem;color:var(--text);box-shadow:0 8px 32px rgba(0,0,0,0.5);z-index:9999;transition:transform .35s cubic-bezier(.21,1.5,.65,1);pointer-events:none;white-space:nowrap}
 .toast.show{transform:translateX(-50%) translateY(0)}
@@ -212,7 +213,7 @@ footer{padding:28px 2rem;background:rgba(9,13,24,0.8);border-top:1px solid var(-
     <div class="modal-title">🔐 SIGN IN TO YOUR VAULT</div>
     <div class="google-verified-badge">🔒 Zero-knowledge · AES-256 encrypted</div>
     <button class="btn-google" onclick="handleGoogleSignIn('signinModal')">
-      <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.566 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 6.293C4.672 4.166 6.656 3.58 9 3.58z"/></svg>
+      <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 0 1-7.18-2.54H1.83v2.07A8 8 0 0 0 8.98 17z"/><path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 0 1 0-3.04V5.41H1.83a8 8 0 0 0 0 7.18z"/><path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 0 0 1.83 5.4L4.5 7.49a4.77 4.77 0 0 1 4.48-3.31z"/></svg>
       Continue with Google
     </button>
     <div class="or-divider">or sign in with email</div>
@@ -229,7 +230,7 @@ footer{padding:28px 2rem;background:rgba(9,13,24,0.8);border-top:1px solid var(-
     </div>
     <div id="si-error" style="display:none;color:#ff9090;font-size:.82rem;margin-bottom:12px;padding:10px 14px;background:rgba(232,75,75,0.08);border-radius:8px;border:1px solid rgba(232,75,75,0.2);"></div>
     <div class="form-actions" style="justify-content:space-between;align-items:center;">
-      <a href="#" style="font-size:.82rem;color:var(--cyan);">Forgot password?</a>
+      <a href="#" style="font-size:.82rem;color:var(--cyan);" onclick="handleForgotPassword();return false;">Forgot password?</a>
       <div style="display:flex;gap:10px;">
         <button class="btn-cancel" onclick="closeModal('signinModal')">Cancel</button>
         <button class="btn-save" onclick="handleSignIn()">Sign In →</button>
@@ -248,7 +249,7 @@ footer{padding:28px 2rem;background:rgba(9,13,24,0.8);border-top:1px solid var(-
     <div class="modal-title">⚡ CREATE FREE VAULT</div>
     <div class="google-verified-badge">🔒 Your data never leaves your device unencrypted</div>
     <button class="btn-google" onclick="handleGoogleSignIn('signupModal')">
-      <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.566 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 6.293C4.672 4.166 6.656 3.58 9 3.58z"/></svg>
+      <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 0 1-7.18-2.54H1.83v2.07A8 8 0 0 0 8.98 17z"/><path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 0 1 0-3.04V5.41H1.83a8 8 0 0 0 0 7.18z"/><path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 0 0 1.83 5.4L4.5 7.49a4.77 4.77 0 0 1 4.48-3.31z"/></svg>
       Sign up with Google
     </button>
     <div class="or-divider">or create with email</div>
@@ -305,6 +306,16 @@ footer{padding:28px 2rem;background:rgba(9,13,24,0.8);border-top:1px solid var(-
     <div class="form-group">
       <label class="form-label">Email (read-only)</label>
       <input type="email" class="form-input" id="pf-email" placeholder="—" readonly style="opacity:.6;cursor:default;" />
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Phone Number</label>
+        <input type="tel" class="form-input" id="pf-phone" placeholder="+1 (555) 000-0000" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Backup Email</label>
+        <input type="email" class="form-input" id="pf-backup-email" placeholder="backup@example.com" />
+      </div>
     </div>
     <div class="form-group">
       <label class="form-label">Change Master Password</label>
@@ -367,18 +378,8 @@ footer{padding:28px 2rem;background:rgba(9,13,24,0.8);border-top:1px solid var(-
       <div style="font-size:.72rem;color:var(--gold);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px;font-weight:600;">💳 Card / Banking (optional)</div>
       <div class="form-row">
         <div class="form-group" style="margin-bottom:12px;">
-          <label class="form-label">Account Number</label>
-          <input type="text" class="form-input" placeholder="e.g. 4242 4242 4242 4242" id="add-account-number" />
-        </div>
-        <div class="form-group" style="margin-bottom:12px;">
-          <label class="form-label">Expiration Date</label>
-          <input type="text" class="form-input" placeholder="MM/YY" id="add-expiration" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group" style="margin-bottom:12px;">
-          <label class="form-label">CVV / CV</label>
-          <input type="text" class="form-input" placeholder="3 or 4 digits" id="add-cv" />
+          <label class="form-label">Bank Name</label>
+          <input type="text" class="form-input" placeholder="e.g. Chase, Wells Fargo" id="add-bank-name" />
         </div>
         <div class="form-group" style="margin-bottom:12px;">
           <label class="form-label">Credit or Debit</label>
@@ -392,27 +393,52 @@ footer{padding:28px 2rem;background:rgba(9,13,24,0.8);border-top:1px solid var(-
         </div>
       </div>
       <div class="form-row">
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Account Number (with bank)</label>
+          <input type="text" class="form-input" placeholder="e.g. 123 456 789 000" id="add-account-number" />
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Card Number</label>
+          <div class="pw-wrap">
+            <input type="password" class="form-input" placeholder="16-digit card number" id="add-card-number" />
+            <button class="pw-toggle" onclick="toggleInputPw('add-card-number',this)" type="button">👁</button>
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Expiration Date <span style="color:var(--muted);font-size:.68rem;">(MM/YY)</span></label>
+          <input type="text" class="form-input" placeholder="MM/YY" id="add-expiration" maxlength="5" oninput="formatExpiry(this)" />
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">CVV / CV</label>
+          <div class="pw-wrap">
+            <input type="password" class="form-input" placeholder="3 or 4 digits" id="add-cv" maxlength="4" />
+            <button class="pw-toggle" onclick="toggleInputPw('add-cv',this)" type="button">👁</button>
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
         <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label">Photo — Card Front</label>
+          <label class="form-label">Photo — Card Front <span style="color:var(--muted);font-size:.68rem;">(hidden by default)</span></label>
           <input type="file" class="form-input" accept="image/*" id="add-photo-front" style="padding:7px 14px;font-size:.82rem;" onchange="previewPhoto(this,'prev-front')" />
           <div id="prev-front" style="margin-top:6px;display:none;"><img style="max-width:100%;max-height:80px;border-radius:6px;border:1px solid var(--border);" /></div>
         </div>
         <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label">Photo — Card Back</label>
+          <label class="form-label">Photo — Card Back <span style="color:var(--muted);font-size:.68rem;">(hidden by default)</span></label>
           <input type="file" class="form-input" accept="image/*" id="add-photo-back" style="padding:7px 14px;font-size:.82rem;" onchange="previewPhoto(this,'prev-back')" />
           <div id="prev-back" style="margin-top:6px;display:none;"><img style="max-width:100%;max-height:80px;border-radius:6px;border:1px solid var(--border);" /></div>
         </div>
       </div>
     </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">Security Questions</label>
-        <input type="text" class="form-input" placeholder="e.g. Mother's maiden name: Smith" id="add-security-questions" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">Notes</label>
-        <input type="text" class="form-input" placeholder="Any extra info…" id="add-notes" />
-      </div>
+    <div class="form-group">
+      <label class="form-label" style="margin-bottom:10px;">Security Questions & Answers</label>
+      <div id="sec-qa-list"></div>
+      <button type="button" onclick="addSecQA()" style="padding:7px 16px;background:rgba(77,232,255,0.08);border:1px solid rgba(77,232,255,0.2);border-radius:8px;color:var(--cyan);font-size:.8rem;cursor:pointer;font-family:'Inter',sans-serif;margin-top:6px;">＋ Add Security Question</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notes</label>
+      <input type="text" class="form-input" placeholder="Any extra info…" id="add-notes" />
     </div>
     <input type="hidden" id="add-edit-index" value="" />
     <div class="form-actions">
@@ -478,14 +504,11 @@ footer{padding:28px 2rem;background:rgba(9,13,24,0.8);border-top:1px solid var(-
     <div class="nav-actions">
       <button class="btn-ghost" id="navSignInBtn" onclick="openModal('signinModal')">Sign In</button>
       <button class="btn-primary" id="navGetStartedBtn" onclick="openModal('signupModal')">⚡ Get Started</button>
-      <div class="nav-user-chip" id="navUserChip" onclick="openProfile()">
-        <div style="position:relative;">
-          <div class="nav-avatar" id="navAvatarCircle">?</div>
-          <div style="position:absolute;bottom:0;right:0;width:9px;height:9px;background:#4be89a;border-radius:50%;border:2px solid #0a0f1e;"></div>
-        </div>
-        <div style="display:flex;flex-direction:column;line-height:1.1;">
+      <div class="nav-user-chip" id="navUserChip" onclick="openProfile()" title="View Profile">
+        <div class="nav-avatar" id="navAvatarCircle">?</div>
+        <div style="display:flex;flex-direction:column;gap:1px;">
           <span class="nav-user-name" id="navUserName">User</span>
-          <span style="font-size:.65rem;color:#4be89a;letter-spacing:.05em;">● VAULT UNLOCKED</span>
+          <span style="font-size:.62rem;color:var(--green);letter-spacing:.06em;display:flex;align-items:center;gap:4px;"><span style="width:5px;height:5px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);display:inline-block;"></span>Vault Unlocked</span>
         </div>
       </div>
       <button class="btn-signout" id="navSignOutBtn" style="display:none;" onclick="signOut()">🚪 Sign Out</button>
@@ -541,7 +564,6 @@ footer{padding:28px 2rem;background:rgba(9,13,24,0.8);border-top:1px solid var(-
           </div>
         </div>
         <div class="demo-actions">
-          <button class="btn-secondary" onclick="openProfile()">👤 Profile</button>
           <button class="btn-primary" onclick="requireAuth(openAddModal)">＋ Add Password</button>
           <button class="btn-secondary" onclick="requireAuth(exportExcel)">⬇ Export Excel</button>
         </div>
@@ -618,13 +640,6 @@ document.addEventListener('DOMContentLoaded', function() {
   populateCategoryDropdown();
   setupDragDrop();
 
-
-  // Restore session immediately on page load (handles Google OAuth redirect)
-  _supabase.auth.getSession().then(function(result) {
-    if (result.data && result.data.session && result.data.session.user) {
-      loginUser(result.data.session.user, false);
-    }
-  });
   // Listen for Supabase auth state changes (handles Google OAuth redirect too)
   _supabase.auth.onAuthStateChange(function(event, session) {
     if (session && session.user) {
@@ -704,11 +719,90 @@ function showErr(el, msg) { el.textContent = msg; el.style.display = 'block'; }
 
 var GOOGLE_CLIENT_ID = '325451333216-kphohenr4diso8lak80rfr3dbsdco47r.apps.googleusercontent.com';
 
+// ── EXPIRY FORMAT ─────────────────────────────────────────────
+function formatExpiry(input) {
+  var v = input.value.replace(/\D/g,'');
+  if (v.length >= 3) v = v.substring(0,2) + '/' + v.substring(2,4);
+  input.value = v;
+}
+
+// ── SECURITY Q&A ─────────────────────────────────────────────
+function initSecQAList(existing) {
+  var list = document.getElementById('sec-qa-list');
+  if (!list) return;
+  list.innerHTML = '';
+  var pairs = [];
+  if (existing) {
+    try { pairs = JSON.parse(existing); } catch(e) {
+      if (existing.trim()) pairs = [{ q: existing, a: '' }];
+    }
+  }
+  if (!pairs.length) pairs = [{ q: '', a: '' }];
+  pairs.forEach(function(p) { addSecQARow(p.q, p.a); });
+}
+
+function addSecQARow(q, a) {
+  var list = document.getElementById('sec-qa-list');
+  if (!list) return;
+  var idx = list.children.length;
+  var div = document.createElement('div');
+  div.style.cssText = 'background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;position:relative;';
+  div.innerHTML =
+    '<div style="font-size:.7rem;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em;">Question ' + (idx+1) + '</div>' +
+    '<input type="text" class="form-input" placeholder="e.g. Mother\'s maiden name?" style="margin-bottom:8px;" value="' + esc(q||'') + '" data-qa="q" />' +
+    '<div style="font-size:.7rem;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em;">Answer</div>' +
+    '<div style="position:relative;">' +
+      '<input type="password" class="form-input" placeholder="Answer (hidden)" value="' + esc(a||'') + '" data-qa="a" />' +
+      '<button type="button" onclick="this.previousElementSibling.type=this.previousElementSibling.type===\'password\'?\'text\':\'password\';this.textContent=this.previousElementSibling.type===\'password\'?\'👁\':\'🙈\';" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:.9rem;">👁</button>' +
+    '</div>' +
+    (idx > 0 ? '<button type="button" onclick="this.parentNode.remove();" style="position:absolute;top:8px;right:10px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:.9rem;">✕</button>' : '');
+  list.appendChild(div);
+}
+
+function addSecQA() { addSecQARow('',''); }
+
+function getSecQAJson() {
+  var list = document.getElementById('sec-qa-list');
+  if (!list) return '';
+  var pairs = [];
+  Array.from(list.children).forEach(function(row) {
+    var q = row.querySelector('[data-qa="q"]');
+    var a = row.querySelector('[data-qa="a"]');
+    if (q && q.value.trim()) pairs.push({ q: q.value.trim(), a: a ? a.value.trim() : '' });
+  });
+  return pairs.length ? JSON.stringify(pairs) : '';
+}
+
+// ── LIGHTBOX ─────────────────────────────────────────────────
+function openLightbox(url) {
+  var lb = document.getElementById('lightboxModal');
+  if (!lb) {
+    lb = document.createElement('div');
+    lb.id = 'lightboxModal';
+    lb.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    lb.innerHTML = '<div style="position:relative;max-width:90vw;max-height:90vh;"><img id="lightboxImg" style="max-width:90vw;max-height:85vh;border-radius:12px;box-shadow:0 0 40px rgba(0,0,0,0.8);" /><button onclick="document.getElementById(\'lightboxModal\').remove();" style="position:absolute;top:-16px;right:-16px;background:var(--gold);border:none;border-radius:50%;width:32px;height:32px;font-size:1rem;cursor:pointer;font-weight:700;">✕</button></div>';
+    lb.addEventListener('click', function(e){ if(e.target===lb) lb.remove(); });
+    document.body.appendChild(lb);
+  }
+  document.getElementById('lightboxImg').src = url;
+  document.getElementById('lightboxModal').style.display = 'flex';
+}
+
+function handleForgotPassword() {
+  var email = document.getElementById('si-email').value.trim().toLowerCase();
+  if (!email || !email.includes('@')) { showToast('⚠ Enter your email above first, then click Forgot Password.'); return; }
+  _supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin }).then(function(result) {
+    if (result.error) { showToast('⚠ ' + result.error.message); return; }
+    showToast('📧 Password reset email sent to ' + email);
+    closeModal('signinModal');
+  });
+}
+
 function handleGoogleSignIn(fromModal) {
   closeModal(fromModal);
   _supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: 'https://secure-vault-lovat.vercel.app' }
+    options: { redirectTo: window.location.origin }
   }).then(function(result) {
     if (result.error) { showToast('⚠ Google sign-in failed: ' + result.error.message); }
   });
@@ -737,7 +831,6 @@ function loadVaultFromSupabase(callback) {
   _supabase.from('credentials')
     .select('*')
     .eq('user_id', currentUser.id)
-    .order('created_at', { ascending: false })
     .then(function(result) {
       if (result.error) { showToast('⚠ Error loading vault: ' + result.error.message); if (callback) callback(); return; }
       credentials = (result.data || []).map(function(row) {
@@ -750,6 +843,8 @@ function loadVaultFromSupabase(callback) {
           notes: row.notes_enc || '',
           category: row.category || 'personal',
           account_number: row.account_number_enc || '',
+          bank_name: row.bank_name_enc || '',
+          card_number: row.card_number_enc || '',
           expiration_date: row.expiration_date_enc || '',
           cv: row.cvv_enc || '',
           card_type: row.card_type || '',
@@ -761,6 +856,8 @@ function loadVaultFromSupabase(callback) {
           _db_id: row.id
         };
       });
+      // EDIT 8 — Sort A→Z by title
+      credentials.sort(function(a,b){ return (a.title||'').toLowerCase().localeCompare((b.title||'').toLowerCase()); });
 
       // Load categories
       _supabase.from('categories')
@@ -832,6 +929,13 @@ function openProfile() {
   } else {
     pfAv.textContent = (name || '?').charAt(0).toUpperCase();
   }
+  // Load phone + backup email from profiles table
+  _supabase.from('profiles').select('phone, backup_email').eq('id', currentUser.id).single().then(function(r) {
+    if (r.data) {
+      var ph = document.getElementById('pf-phone'); if(ph) ph.value = r.data.phone || '';
+      var be = document.getElementById('pf-backup-email'); if(be) be.value = r.data.backup_email || '';
+    }
+  });
   openModal('profileModal');
 }
 
@@ -839,18 +943,20 @@ function saveProfile() {
   if (!currentUser) return;
   var newName = document.getElementById('pf-name').value.trim();
   var newPass = document.getElementById('pf-pass').value;
-
-  var updates = {};
-  if (newName) { updates.full_name = newName; currentUser._name = newName; }
+  var phone = document.getElementById('pf-phone') ? document.getElementById('pf-phone').value.trim() : '';
+  var backupEmail = document.getElementById('pf-backup-email') ? document.getElementById('pf-backup-email').value.trim() : '';
 
   var promises = [];
 
-  if (Object.keys(updates).length > 0) {
-    promises.push(_supabase.auth.updateUser({ data: updates }));
+  if (newName) {
+    currentUser._name = newName;
+    promises.push(_supabase.auth.updateUser({ data: { full_name: newName } }));
   }
   if (newPass && newPass.length >= 6) {
     promises.push(_supabase.auth.updateUser({ password: newPass }));
   }
+  // Save phone + backup email to profiles table
+  promises.push(_supabase.from('profiles').update({ phone: phone, backup_email: backupEmail }).eq('id', currentUser.id));
 
   Promise.all(promises).then(function() {
     closeModal('profileModal');
@@ -912,16 +1018,39 @@ function credHTML(c) {
   var si = strengthInfo(c.password);
   var initial = (c.title||'?').charAt(0).toUpperCase();
   var pwId = 'pw-' + c.id;
+  var cvvId = 'cvv-' + c.id;
+  var cnId = 'cn-' + c.id;
   pwMap[pwId] = c.password;
+  pwMap[cvvId] = c.cv;
+  pwMap[cnId] = c.card_number;
   var urlDisplay = c.url ? c.url.replace(/^https?:\/\/(www\.)?/,'') : '';
   var extraFields = '';
-  if (c.account_number) extraFields += '<div class="field"><div class="field-label">Account Number</div><div class="field-row"><div class="field-value">' + esc(c.account_number) + '</div><button class="btn-field btn-copy" onclick="copyText(this.dataset.val,\'Account Number\')" data-val="' + esc(c.account_number) + '">📋 Copy</button></div></div>';
+
+  if (c.bank_name) extraFields += '<div class="field"><div class="field-label">Bank Name</div><div class="field-value" style="font-family:\'Inter\',sans-serif;">' + esc(c.bank_name) + '</div></div>';
+  if (c.card_type) extraFields += '<div class="field"><div class="field-label">Credit or Debit</div><div class="field-value" style="font-family:\'Inter\',sans-serif;">' + esc(c.card_type) + '</div></div>';
+  if (c.account_number) extraFields += '<div class="field"><div class="field-label">Account Number (with bank)</div><div class="field-row"><div class="field-value">' + esc(c.account_number) + '</div><button class="btn-field btn-copy" onclick="copyText(this.dataset.val,\'Account Number\')" data-val="' + esc(c.account_number) + '">📋 Copy</button></div></div>';
+  if (c.card_number) extraFields += '<div class="field"><div class="field-label">Card Number</div><div class="field-row"><div class="field-value masked" id="' + cnId + '">•••• •••• •••• ••••</div><button class="btn-field btn-reveal" onclick="togglePw(\'' + cnId + '\',this)">👁 Show</button><button class="btn-field btn-copy" onclick="copyPw(\'' + cnId + '\')">📋</button></div></div>';
   if (c.expiration_date) extraFields += '<div class="field"><div class="field-label">Expiration Date</div><div class="field-value">' + esc(c.expiration_date) + '</div></div>';
-  if (c.cv) extraFields += '<div class="field"><div class="field-label">CVV / CV</div><div class="field-value">' + esc(c.cv) + '</div></div>';
-  if (c.card_type) extraFields += '<div class="field"><div class="field-label">Credit or Debit</div><div class="field-value">' + esc(c.card_type) + '</div></div>';
-  if (c.photo_front) extraFields += '<div class="field"><div class="field-label">Card Front</div><img src="' + c.photo_front + '" style="max-width:160px;max-height:90px;border-radius:8px;border:1px solid var(--border);margin-top:4px;" /></div>';
-  if (c.photo_back) extraFields += '<div class="field"><div class="field-label">Card Back</div><img src="' + c.photo_back + '" style="max-width:160px;max-height:90px;border-radius:8px;border:1px solid var(--border);margin-top:4px;" /></div>';
-  if (c.security_questions) extraFields += '<div class="field"><div class="field-label">Security Questions</div><div class="field-value" style="font-family:\'Inter\',sans-serif;font-size:.85rem;color:var(--muted);">' + esc(c.security_questions) + '</div></div>';
+  if (c.cv) extraFields += '<div class="field"><div class="field-label">CVV / CV</div><div class="field-row"><div class="field-value masked" id="' + cvvId + '">•••</div><button class="btn-field btn-reveal" onclick="togglePw(\'' + cvvId + '\',this)">👁 Show</button><button class="btn-field btn-copy" onclick="copyPw(\'' + cvvId + '\')">📋</button></div></div>';
+
+  // Card photos — hidden by default, double-click to open lightbox
+  if (c.photo_front) extraFields += '<div class="field"><div class="field-label">Card Front <span style="font-size:.65rem;color:var(--muted);">(double-click to view)</span></div><div ondblclick="openLightbox(\'' + c.photo_front.replace(/'/g,"\\'") + '\')" style="width:120px;height:70px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;margin-top:4px;font-size:.75rem;color:var(--muted);user-select:none;" title="Double-click to view">🔒 Hidden</div></div>';
+  if (c.photo_back) extraFields += '<div class="field"><div class="field-label">Card Back <span style="font-size:.65rem;color:var(--muted);">(double-click to view)</span></div><div ondblclick="openLightbox(\'' + c.photo_back.replace(/'/g,"\\'") + '\')" style="width:120px;height:70px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;margin-top:4px;font-size:.75rem;color:var(--muted);user-select:none;" title="Double-click to view">🔒 Hidden</div></div>';
+
+  // Security Q&A — questions visible, answers hidden
+  if (c.security_questions) {
+    var pairs = [];
+    try { pairs = JSON.parse(c.security_questions); if (!Array.isArray(pairs)) pairs=[{q:c.security_questions,a:''}]; } catch(e){ pairs=[{q:c.security_questions,a:''}]; }
+    pairs.forEach(function(pair, idx) {
+      if (!pair.q) return;
+      var aId = 'sec-a-' + c.id + '-' + idx;
+      pwMap[aId] = pair.a || '';
+      extraFields += '<div class="field"><div class="field-label">Security Q' + (pairs.length>1?(' '+(idx+1)):'') + '</div><div class="field-value" style="font-family:\'Inter\',sans-serif;font-size:.85rem;">' + esc(pair.q) + '</div>';
+      if (pair.a) extraFields += '<div class="field-row" style="margin-top:6px;"><div class="field-value masked" id="' + aId + '">••••••••</div><button class="btn-field btn-reveal" onclick="togglePw(\'' + aId + '\',this)">👁 Answer</button></div>';
+      extraFields += '</div>';
+    });
+  }
+
   if (c.passkey) extraFields += '<div class="field"><div class="field-label">Passkey</div><div class="field-row"><div class="field-value">' + esc(c.passkey) + '</div><button class="btn-field btn-copy" onclick="copyText(this.dataset.val,\'Passkey\')" data-val="' + esc(c.passkey) + '">📋 Copy</button></div></div>';
   var createdStr = '';
   if (c.created_at) { try { var d = new Date(c.created_at); createdStr = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); } catch(e){ createdStr = c.created_at; } }
@@ -996,7 +1125,7 @@ function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; 
 
 function openCatsModal() { renderCatsList(); openModal('catsModal'); }
 function renderCatsList() {
-  var el = document.getElementById('cats-list');
+  var el = document.getElementById('catsList');
   if (!el) return;
   el.innerHTML = categories.map(function(cat, i) {
     return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);">' +
@@ -1006,7 +1135,7 @@ function renderCatsList() {
 }
 
 function addCategory() {
-  var input = document.getElementById('new-cat-input');
+  var input = document.getElementById('newCatInput');
   var val = input.value.trim().toLowerCase();
   if (!val) return;
   if (categories.indexOf(val) > -1) { showToast('⚠ Category already exists'); return; }
@@ -1040,15 +1169,19 @@ function populateCategoryDropdown() {
 
 // ── ADD / EDIT CREDENTIAL ────────────────────────────────────
 function openAddModal() {
-  var titleEl = document.getElementById('addModal-title');
-  if (titleEl) titleEl.textContent = '＋ ADD CREDENTIAL';
+  document.getElementById('add-modal-title').textContent = '＋ ADD CREDENTIAL';
   document.getElementById('add-edit-index').value = '';
-  ['add-title','add-username','add-url','add-notes','add-passkey','add-account-number','add-expiration','add-cv','add-security-questions'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+  ['add-title','add-username','add-url','add-notes','add-passkey','add-account-number','add-card-number','add-bank-name','add-expiration','add-cv'].forEach(function(id){ var el=document.getElementById(id); if(el){el.value='';if(el.type==='password')el.type='password';} });
   var ap = document.getElementById('add-pass'); if(ap){ap.value='';ap.type='password';}
   var ct = document.getElementById('add-card-type'); if(ct) ct.value='';
+  // EDIT 7 — Reset photo inputs fully so previous filenames don't carry over
+  var pf = document.getElementById('add-photo-front'); if(pf) pf.value='';
+  var pb = document.getElementById('add-photo-back'); if(pb) pb.value='';
+  ['prev-front','prev-back'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});
+  // Reset security Q&A list
+  initSecQAList([]);
   populateCategoryDropdown();
   resetStrength('add-strength');
-  ['prev-front','prev-back'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});
   openModal('addModal');
 }
 
@@ -1056,8 +1189,7 @@ function openEditModal(id) {
   var c = null;
   for (var i = 0; i < credentials.length; i++) { if (credentials[i].id == id) { c = credentials[i]; break; } }
   if (!c) return;
-  var titleEl2 = document.getElementById('addModal-title');
-  if (titleEl2) titleEl2.textContent = '✏️ EDIT CREDENTIAL';
+  document.getElementById('add-modal-title').textContent = '✏️ EDIT CREDENTIAL';
   document.getElementById('add-edit-index').value = c.id;
   document.getElementById('add-title').value = c.title || '';
   document.getElementById('add-username').value = c.username || '';
@@ -1066,9 +1198,18 @@ function openEditModal(id) {
   document.getElementById('add-notes').value = c.notes || '';
   document.getElementById('add-passkey').value = c.passkey || '';
   document.getElementById('add-account-number').value = c.account_number || '';
+  document.getElementById('add-bank-name').value = c.bank_name || '';
+  var cn = document.getElementById('add-card-number'); if(cn){cn.value=c.card_number||'';cn.type='password';}
   document.getElementById('add-expiration').value = c.expiration_date || '';
-  document.getElementById('add-cv').value = c.cv || '';
-  document.getElementById('add-security-questions').value = c.security_questions || '';
+  var cv = document.getElementById('add-cv'); if(cv){cv.value=c.cv||'';cv.type='password';}
+  // Load security Q&A pairs
+  var pairs = [];
+  try { pairs = JSON.parse(c.security_questions || '[]'); if (!Array.isArray(pairs)) pairs=[{q:c.security_questions||'',a:''}]; } catch(e){ if(c.security_questions) pairs=[{q:c.security_questions,a:''}]; }
+  initSecQAList(pairs);
+  // Reset photo inputs
+  var pf = document.getElementById('add-photo-front'); if(pf) pf.value='';
+  var pb = document.getElementById('add-photo-back'); if(pb) pb.value='';
+  ['prev-front','prev-back'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});
   populateCategoryDropdown();
   document.getElementById('add-category').value = c.category || categories[0];
   var ct = document.getElementById('add-card-type'); if(ct) ct.value = c.card_type || '';
@@ -1086,10 +1227,15 @@ function saveCredential() {
   var editId = document.getElementById('add-edit-index').value;
   var passkey = document.getElementById('add-passkey').value.trim();
   var account_number = document.getElementById('add-account-number').value.trim();
+  var bank_name = document.getElementById('add-bank-name').value.trim();
+  var card_number = document.getElementById('add-card-number').value.trim();
   var expiration_date = document.getElementById('add-expiration').value.trim();
   var cv = document.getElementById('add-cv').value.trim();
   var card_type = document.getElementById('add-card-type').value;
-  var security_questions = document.getElementById('add-security-questions').value.trim();
+  // Validate expiry format if provided
+  if (expiration_date && !/^\d{2}\/\d{2}$/.test(expiration_date)) { showToast('⚠ Expiration date must be MM/YY format'); return; }
+  // Collect security Q&A pairs as JSON
+  var security_questions = getSecQAJson();
   if (!title) { showToast('⚠ Please enter a title'); return; }
   if (!password) { showToast('⚠ Please enter a password'); return; }
 
@@ -1109,6 +1255,8 @@ function saveCredential() {
       category: category,
       passkey: passkey,
       account_number_enc: account_number,
+      bank_name_enc: bank_name,
+      card_number_enc: card_number,
       expiration_date_enc: expiration_date,
       cvv_enc: cv,
       card_type: card_type,
