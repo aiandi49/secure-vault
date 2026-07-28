@@ -7,6 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Space+Mono:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://www.paypal.com/sdk/js?client-id=AVNfSUQkPBUWeP5tUbbghqsqVei_U48wbCPyVngJsgWviaXAod6GFHGgcarbWShxaPbTHVEY1GKPWTkM&currency=USD"></script>
 
 <style>
 :root{--bg:#090d18;--bg2:#0d1526;--card:#101c35;--card2:#152040;--gold:#e8b84b;--gold2:#f5d27a;--gold-dim:rgba(232,184,75,0.15);--navy:#1a3a6e;--navy-bright:#2b5ba8;--cyan:#4de8ff;--cyan-dim:rgba(77,232,255,0.12);--red:#e84b4b;--green:#4be89a;--text:#e8f0ff;--muted:#7a90b8;--border:rgba(232,184,75,0.2);--border2:rgba(77,232,255,0.15)}
@@ -490,6 +491,25 @@ footer{padding:28px 2rem;background:rgba(9,13,24,0.8);border-top:1px solid var(-
   </div>
 </div>
 
+<div class="modal-overlay" id="paywallModal">
+  <div class="modal" style="max-width:440px;text-align:center;">
+    <div style="font-size:3rem;margin-bottom:8px;">🔓</div>
+    <div class="modal-title">UNLOCK YOUR VAULT</div>
+    <div style="font-size:.95rem;color:var(--muted);line-height:1.6;margin-bottom:6px;">
+      One-time payment. No subscription, no recurring charges — ever.
+    </div>
+    <div style="font-family:'Orbitron',monospace;font-size:2.2rem;font-weight:900;color:var(--gold);margin:18px 0;">
+      $9.99
+    </div>
+    <div id="paywall-status" style="font-size:.85rem;color:var(--cyan);min-height:20px;margin-bottom:10px;"></div>
+    <div id="paypal-button-container" style="margin:0 auto 16px;max-width:320px;"></div>
+    <div style="font-size:.72rem;color:var(--muted);margin-top:8px;">
+      🔒 Payments processed securely by PayPal. We never see or store your card details.
+    </div>
+    <a href="#" style="display:block;margin-top:18px;font-size:.82rem;color:var(--muted);" onclick="event.preventDefault();signOut();closeModal('paywallModal')">Sign out</a>
+  </div>
+</div>
+
 <div class="wrapper">
   <nav>
     <div class="nav-logo">
@@ -649,6 +669,8 @@ document.addEventListener('DOMContentLoaded', function() {
       credentials = [];
       categories = ['personal','banking','work','finance','social','shopping','entertainment'];
       pwMap = {};
+      _paypalButtonRendered = false;
+      closeModal('paywallModal');
       updateNavUI();
       refreshCategoryPills();
       renderCreds();
@@ -678,13 +700,91 @@ function loginUser(user, showWelcome) {
   currentUser._name = name;
   currentUser._picture = picture;
 
-  loadVaultFromSupabase(function() {
-    updateNavUI();
-    refreshCategoryPills();
-    populateCategoryDropdown();
-    renderCreds();
-    if (showWelcome) { showToast('✅ Welcome back, ' + name.split(' ')[0] + '!'); }
+  checkEntitlement(function(isPaid) {
+    if (!isPaid) {
+      openModal('paywallModal');
+      renderPayPalButton();
+      return;
+    }
+    closeModal('paywallModal');
+    loadVaultFromSupabase(function() {
+      updateNavUI();
+      refreshCategoryPills();
+      populateCategoryDropdown();
+      renderCreds();
+      if (showWelcome) { showToast('✅ Welcome back, ' + name.split(' ')[0] + '!'); }
+    });
   });
+}
+
+// ── PAYGATE ──────────────────────────────────────────────────
+function checkEntitlement(callback) {
+  if (!currentUser) { callback(false); return; }
+  _supabase.from('entitlements')
+    .select('user_id')
+    .eq('user_id', currentUser.id)
+    .maybeSingle()
+    .then(function(result) {
+      callback(!!(result.data && !result.error));
+    });
+}
+
+var _paypalButtonRendered = false;
+function renderPayPalButton() {
+  if (_paypalButtonRendered) return;
+  if (typeof paypal === 'undefined') { setTimeout(renderPayPalButton, 300); return; }
+  _paypalButtonRendered = true;
+
+  paypal.Buttons({
+    style: { layout: 'vertical', color: 'gold', shape: 'pill', label: 'pay' },
+    createOrder: function(data, actions) {
+      return actions.order.create({
+        purchase_units: [{
+          description: 'Secure Vault — Lifetime Access',
+          amount: { value: '9.99', currency_code: 'USD' }
+        }]
+      });
+    },
+    onApprove: function(data) {
+      var statusEl = document.getElementById('paywall-status');
+      statusEl.textContent = 'Confirming your payment…';
+
+      return _supabase.auth.getSession().then(function(sessResult) {
+        var token = sessResult.data.session.access_token;
+        return fetch(SUPABASE_URL + '/functions/v1/capture-paypal-order', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({ orderID: data.orderID })
+        });
+      }).then(function(res) { return res.json(); })
+        .then(function(result) {
+          if (result.success) {
+            statusEl.textContent = '✅ Payment confirmed — unlocking your vault…';
+            setTimeout(function() {
+              closeModal('paywallModal');
+              loadVaultFromSupabase(function() {
+                updateNavUI();
+                refreshCategoryPills();
+                populateCategoryDropdown();
+                renderCreds();
+                showToast('🎉 Vault unlocked — welcome in!');
+              });
+            }, 900);
+          } else {
+            statusEl.textContent = '⚠ ' + (result.error || 'Payment could not be verified. Please try again or contact support.');
+          }
+        })
+        .catch(function() {
+          statusEl.textContent = '⚠ Something went wrong confirming payment. Please try again.';
+        });
+    },
+    onError: function() {
+      document.getElementById('paywall-status').textContent = '⚠ Payment failed. Please try again.';
+    }
+  }).render('#paypal-button-container');
 }
 
 function handleSignUp() {
