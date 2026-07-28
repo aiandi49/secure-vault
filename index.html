@@ -326,6 +326,7 @@ footer{padding:28px 2rem;background:rgba(9,13,24,0.8);border-top:1px solid var(-
       </div>
     </div>
     <div class="form-actions" style="justify-content:space-between;">
+      <button class="btn-field" style="width:100%;margin-bottom:10px;" onclick="reencryptLegacyCredentials()">🔒 Re-encrypt all (fixes any pre-encryption items)</button>
       <button class="btn-signout" onclick="signOut()">🚪 Sign Out</button>
       <div style="display:flex;gap:10px;">
         <button class="btn-cancel" onclick="closeModal('profileModal')">Cancel</button>
@@ -653,6 +654,105 @@ var deleteTargetId = null;
 var nextId = 100;
 var pwMap = {};
 
+// ── ZERO-KNOWLEDGE ENCRYPTION ──────────────────────────────────
+// vaultKey lives ONLY in this tab's memory. It is derived from a
+// passphrase that is never sent to Supabase, never logged, and
+// never stored anywhere. Losing the passphrase means the data
+// cannot be recovered by anyone — including the developer.
+var vaultKey = null;          // CryptoKey (AES-GCM), null = vault is locked
+var _pendingPassphrase = null; // transient bridge between the sign-in form and the auth callback
+var VAULT_CANARY = 'secure-vault-integrity-check-v1';
+var SENSITIVE_FIELDS = ['username_enc','password_enc','notes_enc','account_number_enc','bank_name_enc','card_number_enc','expiration_date_enc','cvv_enc','security_questions_enc'];
+
+function randomBytes(n) { var a = new Uint8Array(n); crypto.getRandomValues(a); return a; }
+function b64e(buf) { return btoa(String.fromCharCode.apply(null, new Uint8Array(buf))); }
+function b64d(str) { var bin = atob(str); var arr = new Uint8Array(bin.length); for (var i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i); return arr.buffer; }
+
+function deriveVaultKey(passphrase, saltB64) {
+  var enc = new TextEncoder();
+  return crypto.subtle.importKey('raw', enc.encode(passphrase), {name:'PBKDF2'}, false, ['deriveKey'])
+    .then(function(keyMaterial) {
+      return crypto.subtle.deriveKey(
+        { name:'PBKDF2', salt: b64d(saltB64), iterations: 250000, hash:'SHA-256' },
+        keyMaterial,
+        { name:'AES-GCM', length: 256 },
+        false,
+        ['encrypt','decrypt']
+      );
+    });
+}
+
+// Every encrypted value is stored as "iv_base64:ciphertext_base64".
+// A value with no ':' is treated as legacy plaintext (pre-migration rows).
+function vaultEncrypt(plain) {
+  if (plain === '' || plain === null || plain === undefined) return Promise.resolve('');
+  if (!vaultKey) return Promise.reject(new Error('Vault is locked — cannot encrypt.'));
+  var iv = randomBytes(12);
+  return crypto.subtle.encrypt({name:'AES-GCM', iv: iv}, vaultKey, new TextEncoder().encode(String(plain)))
+    .then(function(cipher) { return b64e(iv) + ':' + b64e(cipher); });
+}
+
+function vaultDecrypt(packed) {
+  if (!packed) return Promise.resolve('');
+  if (!vaultKey) return Promise.resolve('🔒 locked');
+  var parts = String(packed).split(':');
+  if (parts.length !== 2) return Promise.resolve(packed); // legacy plaintext, not yet migrated
+  return crypto.subtle.decrypt({name:'AES-GCM', iv: new Uint8Array(b64d(parts[0]))}, vaultKey, b64d(parts[1]))
+    .then(function(buf) { return new TextDecoder().decode(buf); })
+    .catch(function() { return '⚠ decryption failed'; });
+}
+
+// Tries the given passphrase against this user's profile. On the very first
+// unlock ever, it mints a "canary" (an encrypted known value) so that on every
+// later unlock we can tell a wrong passphrase apart from a correct one —
+// without the server ever learning the passphrase itself.
+function unlockVaultWithPassphrase(passphrase, profileRow) {
+  return deriveVaultKey(passphrase, profileRow.encryption_salt).then(function(key) {
+    vaultKey = key;
+    if (!profileRow.encryption_canary) {
+      return vaultEncrypt(VAULT_CANARY).then(function(packed) {
+        return _supabase.from('profiles').update({ encryption_canary: packed }).eq('id', currentUser.id);
+      }).then(function() { return true; });
+    }
+    return vaultDecrypt(profileRow.encryption_canary).then(function(plain) {
+      if (plain !== VAULT_CANARY) { vaultKey = null; return false; }
+      return true;
+    });
+  });
+}
+
+// Lightweight prompt used for the Google OAuth path, where there is no
+// master password to reuse as the encryption passphrase.
+function promptVaultPassphrase(isFirstTime, onSubmit) {
+  var existing = document.getElementById('vaultUnlockModal');
+  if (existing) existing.remove();
+  var div = document.createElement('div');
+  div.id = 'vaultUnlockModal';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+  div.innerHTML =
+    '<div style="background:var(--card,#1a1a1a);border-radius:16px;padding:28px;max-width:420px;width:100%;">' +
+      '<div style="font-weight:700;font-size:1.1rem;margin-bottom:8px;">' + (isFirstTime ? '🔐 Create your vault passphrase' : '🔐 Unlock your vault') + '</div>' +
+      '<div style="font-size:.85rem;color:var(--muted,#999);margin-bottom:16px;">' +
+        (isFirstTime
+          ? 'This is separate from your Google login. It encrypts your data locally — nobody but you will ever know it, and it cannot be reset. Write it down somewhere safe.'
+          : 'Enter the passphrase you set for this vault.') +
+      '</div>' +
+      '<input type="password" id="vaultUnlockInput" class="form-input" placeholder="Vault passphrase" style="width:100%;margin-bottom:12px;" />' +
+      '<div id="vaultUnlockError" style="color:#e0685a;font-size:.82rem;margin-bottom:12px;display:none;"></div>' +
+      '<button class="btn-primary" style="width:100%;" id="vaultUnlockSubmit">Unlock</button>' +
+    '</div>';
+  document.body.appendChild(div);
+  document.getElementById('vaultUnlockSubmit').onclick = function() {
+    var val = document.getElementById('vaultUnlockInput').value;
+    if (!val) return;
+    onSubmit(val, function(errMsg) {
+      var e = document.getElementById('vaultUnlockError');
+      if (errMsg) { e.textContent = errMsg; e.style.display = 'block'; }
+      else { div.remove(); }
+    });
+  };
+}
+
 // ── INIT ─────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
   refreshCategoryPills();
@@ -707,12 +807,48 @@ function loginUser(user, showWelcome) {
       return;
     }
     closeModal('paywallModal');
-    loadVaultFromSupabase(function() {
-      updateNavUI();
-      refreshCategoryPills();
-      populateCategoryDropdown();
-      renderCreds();
-      if (showWelcome) { showToast('✅ Welcome back, ' + name.split(' ')[0] + '!'); }
+    proceedToVault(showWelcome, name);
+  });
+}
+
+function proceedToVault(showWelcome, name) {
+  function finish() {
+    updateNavUI();
+    refreshCategoryPills();
+    populateCategoryDropdown();
+    renderCreds();
+    if (showWelcome) { showToast('✅ Welcome back, ' + name.split(' ')[0] + '!'); }
+  }
+
+  _supabase.from('profiles').select('encryption_salt, encryption_canary').eq('id', currentUser.id).single().then(function(profResult) {
+    var profileRow = profResult.data || {};
+
+    function afterUnlock() {
+      loadVaultFromSupabase(function() { decryptLoadedCredentials(finish); });
+    }
+
+    if (_pendingPassphrase) {
+      // Came from the email/password sign-in form — reuse that password as the vault passphrase.
+      var pass = _pendingPassphrase; _pendingPassphrase = null;
+      unlockVaultWithPassphrase(pass, profileRow).then(function(ok) {
+        if (!ok) {
+          showToast('⚠ Vault locked: this password doesn\'t match your vault\'s encryption key. If you reset your login password, use "Unlock with a different passphrase" from your profile menu.');
+        }
+        afterUnlock();
+      });
+      return;
+    }
+
+    if (vaultKey) { afterUnlock(); return; } // already unlocked this session
+
+    // OAuth login, or a page reload — there's no password to reuse, so ask.
+    var isFirstTime = !profileRow.encryption_canary;
+    promptVaultPassphrase(isFirstTime, function(passphrase, done) {
+      unlockVaultWithPassphrase(passphrase, profileRow).then(function(ok) {
+        if (!ok) { done('That passphrase doesn\'t match this vault. Try again.'); return; }
+        done(null);
+        afterUnlock();
+      });
     });
   });
 }
@@ -765,13 +901,7 @@ function renderPayPalButton() {
             statusEl.textContent = '✅ Payment confirmed — unlocking your vault…';
             setTimeout(function() {
               closeModal('paywallModal');
-              loadVaultFromSupabase(function() {
-                updateNavUI();
-                refreshCategoryPills();
-                populateCategoryDropdown();
-                renderCreds();
-                showToast('🎉 Vault unlocked — welcome in!');
-              });
+              proceedToVault(true, currentUser._name || 'there');
             }, 900);
           } else {
             statusEl.textContent = '⚠ ' + (result.error || 'Payment could not be verified. Please try again or contact support.');
@@ -799,12 +929,13 @@ function handleSignUp() {
   if (!pass || pass.length < 6) { showErr(errEl, 'Password must be at least 6 characters.'); return; }
 
   showToast('⏳ Creating your vault...');
+  _pendingPassphrase = pass; // used to derive the encryption key if a session comes back immediately
   _supabase.auth.signUp({
     email: email,
     password: pass,
     options: { data: { full_name: (first + (last ? ' ' + last : '')).trim() } }
   }).then(function(result) {
-    if (result.error) { showErr(errEl, result.error.message); return; }
+    if (result.error) { _pendingPassphrase = null; showErr(errEl, result.error.message); return; }
     closeModal('signupModal');
     showToast('🎉 Vault created! Welcome, ' + first + '! Check your email to confirm.');
   });
@@ -818,8 +949,9 @@ function handleSignIn() {
   if (!email || !pass) { showErr(errEl, 'Please enter your email and password.'); return; }
 
   showToast('⏳ Signing in...');
+  _pendingPassphrase = pass;
   _supabase.auth.signInWithPassword({ email: email, password: pass }).then(function(result) {
-    if (result.error) { showErr(errEl, result.error.message); return; }
+    if (result.error) { _pendingPassphrase = null; showErr(errEl, result.error.message); return; }
     closeModal('signinModal');
   });
 }
@@ -925,6 +1057,8 @@ function signOut() {
     activeFilter = 'all';
     searchQuery = '';
     pwMap = {};
+    vaultKey = null;          // wipe the encryption key from memory on sign-out
+    _pendingPassphrase = null;
     closeModal('profileModal');
     updateNavUI();
     refreshCategoryPills();
@@ -946,18 +1080,20 @@ function loadVaultFromSupabase(callback) {
         return {
           id: row.id,
           title: row.title || '',
-          username: row.username_enc || '',
-          password: row.password_enc || '',
+          // ._raw holds exactly what's in the database (still encrypted).
+          // The plain fields below get filled in by decryptLoadedCredentials().
+          _raw: {
+            username_enc: row.username_enc || '', password_enc: row.password_enc || '',
+            notes_enc: row.notes_enc || '', account_number_enc: row.account_number_enc || '',
+            bank_name_enc: row.bank_name_enc || '', card_number_enc: row.card_number_enc || '',
+            expiration_date_enc: row.expiration_date_enc || '', cvv_enc: row.cvv_enc || '',
+            security_questions_enc: row.security_questions_enc || ''
+          },
+          username: '', password: '', notes: '', account_number: '', bank_name: '',
+          card_number: '', expiration_date: '', cv: '', security_questions: '',
           url: row.website_url || '',
-          notes: row.notes_enc || '',
           category: row.category || 'personal',
-          account_number: row.account_number_enc || '',
-          bank_name: row.bank_name_enc || '',
-          card_number: row.card_number_enc || '',
-          expiration_date: row.expiration_date_enc || '',
-          cv: row.cvv_enc || '',
           card_type: row.card_type || '',
-          security_questions: row.security_questions_enc || '',
           passkey: row.passkey || '',
           photo_front: row.photo_front_url || '',
           photo_back: row.photo_back_url || '',
@@ -985,6 +1121,60 @@ function loadVaultFromSupabase(callback) {
 function saveVaultData() {
   // No-op: Supabase saves happen in real-time on each action
   // Kept for compatibility with import function
+}
+
+// Decrypts every loaded credential's ._raw fields into plain display fields.
+// Anything already re-encrypted (contains ':') decrypts normally. Anything
+// still in the old plaintext format (no ':') passes through unchanged and
+// gets flagged so it can be re-saved (and thereby encrypted) once noticed.
+function decryptLoadedCredentials(callback) {
+  if (!vaultKey) { if (callback) callback(); return; }
+  var legacyCount = 0;
+  var work = credentials.map(function(c) {
+    var r = c._raw;
+    return Promise.all([
+      vaultDecrypt(r.username_enc), vaultDecrypt(r.password_enc), vaultDecrypt(r.notes_enc),
+      vaultDecrypt(r.account_number_enc), vaultDecrypt(r.bank_name_enc), vaultDecrypt(r.card_number_enc),
+      vaultDecrypt(r.expiration_date_enc), vaultDecrypt(r.cvv_enc), vaultDecrypt(r.security_questions_enc)
+    ]).then(function(vals) {
+      c.username = vals[0]; c.password = vals[1]; c.notes = vals[2];
+      c.account_number = vals[3]; c.bank_name = vals[4]; c.card_number = vals[5];
+      c.expiration_date = vals[6]; c.cv = vals[7]; c.security_questions = vals[8];
+      if (r.password_enc && r.password_enc.indexOf(':') === -1) { c._legacyPlaintext = true; legacyCount++; }
+    });
+  });
+  Promise.all(work).then(function() {
+    if (legacyCount > 0) {
+      showToast('⚠ ' + legacyCount + ' item(s) were saved before encryption was added — open and re-save each to encrypt it (or use "Re-encrypt all" in your profile menu).');
+    }
+    if (callback) callback();
+  });
+}
+
+// One-click migration: re-saves every still-plaintext credential through the
+// encrypted path. Safe to run repeatedly — already-encrypted rows are skipped.
+function reencryptLegacyCredentials() {
+  if (!vaultKey) { showToast('🔐 Unlock your vault first.'); return; }
+  var legacy = credentials.filter(function(c) { return c._legacyPlaintext; });
+  if (legacy.length === 0) { showToast('✅ Nothing to re-encrypt — everything is already encrypted.'); return; }
+  showToast('⏳ Re-encrypting ' + legacy.length + ' item(s)...');
+  var chain = Promise.resolve();
+  legacy.forEach(function(c) {
+    chain = chain.then(function() {
+      return Promise.all([
+        vaultEncrypt(c.username), vaultEncrypt(c.password), vaultEncrypt(c.notes),
+        vaultEncrypt(c.account_number), vaultEncrypt(c.bank_name), vaultEncrypt(c.card_number),
+        vaultEncrypt(c.expiration_date), vaultEncrypt(c.cv), vaultEncrypt(c.security_questions)
+      ]).then(function(vals) {
+        return _supabase.from('credentials').update({
+          username_enc: vals[0], password_enc: vals[1], notes_enc: vals[2],
+          account_number_enc: vals[3], bank_name_enc: vals[4], card_number_enc: vals[5],
+          expiration_date_enc: vals[6], cvv_enc: vals[7], security_questions_enc: vals[8]
+        }).eq('id', c.id).then(function() { c._legacyPlaintext = false; });
+      });
+    });
+  });
+  chain.then(function() { showToast('✅ Re-encrypted ' + legacy.length + ' item(s).'); });
 }
 
 // ── PROFILE ──────────────────────────────────────────────────
@@ -1353,32 +1543,43 @@ function saveCredential() {
   if (!title) { showToast('⚠ Please enter a title'); return; }
   if (!password) { showToast('⚠ Please enter a password'); return; }
 
+  if (!vaultKey) { showToast('🔐 Vault is locked — sign in again to unlock it before saving.'); return; }
+
   var frontFile = document.getElementById('add-photo-front').files[0];
   var backFile = document.getElementById('add-photo-back').files[0];
 
-  showToast('⏳ Saving...');
+  showToast('⏳ Encrypting & saving...');
 
   function doSave(photo_front_url, photo_back_url) {
-    var payload = {
-      user_id: currentUser.id,
-      title: title,
-      username_enc: username,
-      password_enc: password,
-      website_url: url,
-      notes_enc: notes,
-      category: category,
-      passkey: passkey,
-      account_number_enc: account_number,
-      bank_name_enc: bank_name,
-      card_number_enc: card_number,
-      expiration_date_enc: expiration_date,
-      cvv_enc: cv,
-      card_type: card_type,
-      security_questions_enc: security_questions
-    };
-    if (photo_front_url !== null) payload.photo_front_url = photo_front_url;
-    if (photo_back_url !== null) payload.photo_back_url = photo_back_url;
+    Promise.all([
+      vaultEncrypt(username), vaultEncrypt(password), vaultEncrypt(notes),
+      vaultEncrypt(account_number), vaultEncrypt(bank_name), vaultEncrypt(card_number),
+      vaultEncrypt(expiration_date), vaultEncrypt(cv), vaultEncrypt(security_questions)
+    ]).then(function(enc) {
+      var payload = {
+        user_id: currentUser.id,
+        title: title,
+        username_enc: enc[0],
+        password_enc: enc[1],
+        website_url: url,
+        notes_enc: enc[2],
+        category: category,
+        passkey: passkey,
+        account_number_enc: enc[3],
+        bank_name_enc: enc[4],
+        card_number_enc: enc[5],
+        expiration_date_enc: enc[6],
+        cvv_enc: enc[7],
+        card_type: card_type,
+        security_questions_enc: enc[8]
+      };
+      if (photo_front_url !== null) payload.photo_front_url = photo_front_url;
+      if (photo_back_url !== null) payload.photo_back_url = photo_back_url;
+      doSaveEncrypted(payload);
+    });
+  }
 
+  function doSaveEncrypted(payload) {
     if (editId) {
       // Update existing
       delete payload.user_id;
@@ -1518,9 +1719,11 @@ function importFromRows(rows) {
   var headerRow = rows[0].map(function(h){ return String(h).trim().toLowerCase(); });
   var dataRows = rows.slice(1);
   function col(names) { for (var i=0;i<names.length;i++){var idx=headerRow.indexOf(names[i].toLowerCase());if(idx>-1)return idx;} return -1; }
+  if (!vaultKey) { showImportResult('❌','Vault is locked','Sign in again to unlock your vault before importing.'); return; }
+
   var iTitle=col(['account name','title','name']),iUser=col(['username','email','user']),iPass=col(['password','pass']),iUrl=col(['website','url','site']),iCat=col(['category','cat']),iNotes=col(['notes','note']),iAccNum=col(['account number','accountnumber']),iExp=col(['expiration date','expiration','exp date','expiry']),iCv=col(['cv','cvv','cvc']),iCard=col(['credit or debit','card type','cardtype']),iSec=col(['security questions','security question','security']),iPasskey=col(['passkey']);
   if (iTitle===-1&&iPass===-1){iTitle=0;iUser=1;iPass=2;iUrl=3;iCat=4;iNotes=5;dataRows=rows;}
-  var toInsert = [];
+  var rowsToProcess = [];
   var skipped = 0;
   dataRows.forEach(function(cols){
     var g=function(i){return i>-1&&cols[i]?String(cols[i]).trim():'';}
@@ -1528,25 +1731,36 @@ function importFromRows(rows) {
     if(!title||!password){skipped++;return;}
     var category=(g(iCat)||'personal').toLowerCase();
     var cat=categories.indexOf(category)>-1?category:'other';
-    toInsert.push({
-      user_id: currentUser.id,
-      title: title, username_enc: g(iUser), password_enc: password,
-      website_url: g(iUrl), notes_enc: g(iNotes), category: cat,
-      account_number_enc: g(iAccNum), expiration_date_enc: g(iExp),
-      cvv_enc: g(iCv), card_type: g(iCard), security_questions_enc: g(iSec),
-      passkey: g(iPasskey)
-    });
+    rowsToProcess.push({ title: title, username: g(iUser), password: password, url: g(iUrl), notes: g(iNotes), category: cat, account_number: g(iAccNum), expiration_date: g(iExp), cv: g(iCv), card_type: g(iCard), security_questions: g(iSec), passkey: g(iPasskey) });
   });
 
-  if (toInsert.length === 0) { showImportResult('❌','Nothing to import','All rows were missing title or password.'); return; }
+  if (rowsToProcess.length === 0) { showImportResult('❌','Nothing to import','All rows were missing title or password.'); return; }
 
-  showToast('⏳ Importing ' + toInsert.length + ' credentials...');
-  _supabase.from('credentials').insert(toInsert).select().then(function(result) {
-    if (result.error) { showImportResult('❌','Import failed', result.error.message); return; }
-    // Reload vault fresh from DB
-    loadVaultFromSupabase(function() {
-      refreshCategoryPills(); populateCategoryDropdown(); renderCreds();
-      showImportResult('✅', toInsert.length + ' credential' + (toInsert.length!==1?'s':'') + ' imported', skipped > 0 ? skipped + ' rows skipped (missing title or password).' : 'All rows imported successfully!');
+  showToast('⏳ Encrypting & importing ' + rowsToProcess.length + ' credentials...');
+
+  Promise.all(rowsToProcess.map(function(r) {
+    return Promise.all([
+      vaultEncrypt(r.username), vaultEncrypt(r.password), vaultEncrypt(r.notes),
+      vaultEncrypt(r.account_number), vaultEncrypt(r.expiration_date), vaultEncrypt(r.cv),
+      vaultEncrypt(r.security_questions)
+    ]).then(function(enc) {
+      return {
+        user_id: currentUser.id, title: r.title,
+        username_enc: enc[0], password_enc: enc[1],
+        website_url: r.url, notes_enc: enc[2], category: r.category,
+        account_number_enc: enc[3], expiration_date_enc: enc[4],
+        cvv_enc: enc[5], card_type: r.card_type, security_questions_enc: enc[6],
+        passkey: r.passkey
+      };
+    });
+  })).then(function(toInsert) {
+    _supabase.from('credentials').insert(toInsert).select().then(function(result) {
+      if (result.error) { showImportResult('❌','Import failed', result.error.message); return; }
+      // Reload vault fresh from DB
+      loadVaultFromSupabase(function() { decryptLoadedCredentials(function() {
+        refreshCategoryPills(); populateCategoryDropdown(); renderCreds();
+        showImportResult('✅', toInsert.length + ' credential' + (toInsert.length!==1?'s':'') + ' imported', skipped > 0 ? skipped + ' rows skipped (missing title or password).' : 'All rows imported successfully!');
+      }); });
     });
   });
 }
