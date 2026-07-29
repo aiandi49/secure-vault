@@ -6,6 +6,7 @@
 <title>Secure Vault — Password Manager</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Space+Mono:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://www.paypal.com/sdk/js?client-id=AVNfSUQkPBUWeP5tUbbghqsqVei_U48wbCPyVngJsgWviaXAod6GFHGgcarbWShxaPbTHVEY1GKPWTkM&currency=USD"></script>
 
@@ -1688,18 +1689,60 @@ function confirmDelete() {
 var EXPORT_HEADERS = ['Account Name','Account Number','Expiration Date','CV','Credit or Debit','Photo Front','Photo Back','Username','Password','Website','Category','Notes','Created','Security Questions','Passkey'];
 function exportExcel() {
   if (!currentUser) { showToast('🔐 Please sign in first'); return; }
-  var rows = [EXPORT_HEADERS];
-  credentials.forEach(function(c) {
+  showToast('⏳ Building your export...');
+
+  var wb = new ExcelJS.Workbook();
+  wb.creator = 'Secure Vault';
+  wb.created = new Date();
+  var ws = wb.addWorksheet('Vault', { views: [{ state: 'frozen', ySplit: 1 }] });
+
+  ws.columns = EXPORT_HEADERS.map(function(h, i) {
+    var widths = [25,20,16,8,14,16,16,30,25,35,14,40,18,30,15];
+    return { header: h, key: 'c'+i, width: widths[i] || 18 };
+  });
+
+  // Brand header row: dark navy fill, gold bold text — matches the app's theme
+  var headerRow = ws.getRow(1);
+  headerRow.eachCell(function(cell) {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0B1220' } };
+    cell.font = { bold: true, color: { argb: 'FFF5B942' }, size: 11 };
+    cell.alignment = { vertical: 'middle', horizontal: 'left' };
+    cell.border = { bottom: { style: 'medium', color: { argb: 'FFF5B942' } } };
+  });
+  headerRow.height = 22;
+
+  credentials.forEach(function(c, idx) {
     var created = '';
     if (c.created_at) { try { var d = new Date(c.created_at); var pad = function(n){return n<10?'0'+n:n;}; created = d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes()); } catch(e) { created = c.created_at; } }
-    rows.push([c.title||'',c.account_number||'',c.expiration_date||'',c.cv||'',c.card_type||'',c.photo_front?'[stored in vault]':'',c.photo_back?'[stored in vault]':'',c.username||'',c.password||'',c.url||'',c.category||'',c.notes||'',created,c.security_questions||'',c.passkey||'']);
+    var row = ws.addRow([
+      c.title||'', c.account_number||'', c.expiration_date||'', c.cv||'', c.card_type||'',
+      c.photo_front?'[stored in vault]':'', c.photo_back?'[stored in vault]':'',
+      c.username||'', c.password||'', c.url||'', c.category||'', c.notes||'',
+      created, c.security_questions||'', c.passkey||''
+    ]);
+    // Subtle zebra striping for readability
+    if (idx % 2 === 1) {
+      row.eachCell(function(cell) {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F6F8' } };
+      });
+    }
+    row.eachCell(function(cell) {
+      cell.border = { bottom: { style: 'thin', color: { argb: 'FFE2E4E8' } } };
+      cell.alignment = { vertical: 'middle' };
+    });
   });
-  var wb = XLSX.utils.book_new();
-  var ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{wch:25},{wch:20},{wch:16},{wch:8},{wch:14},{wch:16},{wch:16},{wch:30},{wch:25},{wch:35},{wch:14},{wch:40},{wch:18},{wch:30},{wch:15}];
-  XLSX.utils.book_append_sheet(wb, ws, 'Vault');
-  XLSX.writeFile(wb, 'secure_vault_export.xlsx');
-  showToast('⬇ Excel export downloaded!');
+
+  wb.xlsx.writeBuffer().then(function(buffer) {
+    var blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = 'secure_vault_export.xlsx';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('⬇ Excel export downloaded!');
+  }).catch(function() {
+    showToast('⚠ Export failed — please try again');
+  });
 }
 
 // ── IMPORT ───────────────────────────────────────────────────
