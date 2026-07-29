@@ -653,7 +653,7 @@ footer{padding:28px 2rem;background:rgba(9,13,24,0.8);border-top:1px solid var(-
       <span style="font-size:.75rem;color:var(--muted);">Password Manager</span>
     </div>
     <div style="font-size:.75rem;color:var(--muted);">© 2025 Secure Vault. All rights reserved.</div>
-    <div class="footer-right"><a class="footer-link" href="mailto:director@metaearthinitiative.org">✉ Contact Support</a></div>
+    <div class="footer-right"><a class="footer-link" href="mailto:ai.agent.lamar@gmail.com">✉ Contact Support</a></div>
   </footer>
 </div>
 
@@ -1052,7 +1052,7 @@ function initSecQAList(existing) {
   var pairs = [];
   if (existing) {
     try { pairs = JSON.parse(existing); } catch(e) {
-      if (existing.trim()) pairs = [{ q: existing, a: '' }];
+      if (String(existing).trim()) pairs = [{ q: String(existing), a: '' }];
     }
   }
   if (!pairs.length) pairs = [{ q: '', a: '' }];
@@ -1507,7 +1507,7 @@ function openAddModal() {
   var pb = document.getElementById('add-photo-back'); if(pb) pb.value='';
   ['prev-front','prev-back'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});
   // Reset security Q&A list
-  initSecQAList([]);
+  initSecQAList('');
   populateCategoryDropdown();
   resetStrength('add-strength');
   openModal('addModal');
@@ -1531,9 +1531,7 @@ function openEditModal(id) {
   document.getElementById('add-expiration').value = c.expiration_date || '';
   var cv = document.getElementById('add-cv'); if(cv){cv.value=c.cv||'';cv.type='password';}
   // Load security Q&A pairs
-  var pairs = [];
-  try { pairs = JSON.parse(c.security_questions || '[]'); if (!Array.isArray(pairs)) pairs=[{q:c.security_questions||'',a:''}]; } catch(e){ if(c.security_questions) pairs=[{q:c.security_questions,a:''}]; }
-  initSecQAList(pairs);
+  initSecQAList(c.security_questions || '');
   // Reset photo inputs
   var pf = document.getElementById('add-photo-front'); if(pf) pf.value='';
   var pb = document.getElementById('add-photo-back'); if(pb) pb.value='';
