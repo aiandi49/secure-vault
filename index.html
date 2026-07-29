@@ -833,6 +833,14 @@ document.addEventListener('DOMContentLoaded', function() {
   // Listen for Supabase auth state changes (handles Google OAuth redirect too)
   _supabase.auth.onAuthStateChange(function(event, session) {
     if (session && session.user) {
+      // Skip re-running the full login/unlock flow on background events
+      // (token refresh, tab focus, etc.) if this exact user is already
+      // signed in and the vault is already unlocked — only a genuine new
+      // sign-in or a different user should trigger the passphrase prompt.
+      if (event !== 'SIGNED_IN' && currentUser && currentUser.id === session.user.id && vaultKey) {
+        currentUser = session.user; // keep token/metadata fresh, key stays as-is
+        return;
+      }
       loginUser(session.user, event === 'SIGNED_IN', _pendingAuthPassword);
     } else {
       currentUser = null;
