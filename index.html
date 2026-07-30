@@ -611,8 +611,10 @@ footer{padding:28px 2rem;background:rgba(9,13,24,0.8);border-top:1px solid var(-
         <div class="demo-actions">
           <button class="btn-primary" onclick="openAddModal()">＋ Add Password</button>
           <button class="btn-secondary" onclick="exportExcel()">⬇ Export Excel</button>
+          <button class="btn-secondary" id="vaultCollapseBtn" onclick="toggleVaultCollapse()" title="Minimize vault" style="padding:10px 12px;">⌃</button>
         </div>
       </div>
+      <div id="vaultCollapseBody">
       <div class="toolbar">
         <div class="search-bar">
           <span class="search-icon">🔍</span>
@@ -626,6 +628,7 @@ footer{padding:28px 2rem;background:rgba(9,13,24,0.8);border-top:1px solid var(-
         <div class="es-icon">🔒</div>
         <p id="emptyStateMsg">Sign in to view your saved passwords.</p>
         <button class="btn-primary" id="emptyStateBtn" onclick="openModal('signinModal')" style="margin:0 auto;">Sign In to Vault</button>
+      </div>
       </div>
     </div>
     <div class="import-card">
@@ -1505,6 +1508,16 @@ function populateCategoryDropdown() {
 }
 
 // ── ADD / EDIT CREDENTIAL ────────────────────────────────────
+function toggleVaultCollapse() {
+  var body = document.getElementById('vaultCollapseBody');
+  var btn = document.getElementById('vaultCollapseBtn');
+  if (!body || !btn) return;
+  var collapsed = body.style.display === 'none';
+  body.style.display = collapsed ? '' : 'none';
+  btn.textContent = collapsed ? '⌃' : '⌄';
+  btn.title = collapsed ? 'Minimize vault' : 'Expand vault';
+}
+
 function openAddModal() {
   document.getElementById('add-modal-title').textContent = '＋ ADD CREDENTIAL';
   document.getElementById('add-edit-index').value = '';
