@@ -1104,6 +1104,19 @@ function getSecQAJson() {
 }
 
 // ── LIGHTBOX ─────────────────────────────────────────────────
+// Photos are stored as a bare storage path (not a long-lived URL) going
+// forward, so a signed URL is generated fresh, short-lived, only at the
+// moment someone actually views it. Old rows saved before this change
+// still hold a full URL — those are used as-is until re-saved.
+function viewPhoto(value) {
+  if (!value) return;
+  if (/^https?:\/\//i.test(value)) { openLightbox(value); return; } // legacy long-lived URL
+  _supabase.storage.from('card-photos').createSignedUrl(value, 600).then(function(result) {
+    if (result.data && result.data.signedUrl) openLightbox(result.data.signedUrl);
+    else showToast('⚠ Could not load photo');
+  });
+}
+
 function openLightbox(url) {
   var lb = document.getElementById('lightboxModal');
   if (!lb) {
@@ -1374,8 +1387,8 @@ function credHTML(c) {
   if (c.cv) extraFields += '<div class="field"><div class="field-label">CVV / CV</div><div class="field-row"><div class="field-value masked" id="' + cvvId + '">•••</div><button class="btn-field btn-reveal" onclick="togglePw(\'' + cvvId + '\',this)">👁 Show</button><button class="btn-field btn-copy" onclick="copyPw(\'' + cvvId + '\')">📋</button></div></div>';
 
   // Card photos — hidden by default, double-click to open lightbox
-  if (c.photo_front) extraFields += '<div class="field"><div class="field-label">Card Front <span style="font-size:.65rem;color:var(--muted);">(double-click to view)</span></div><div ondblclick="openLightbox(\'' + c.photo_front.replace(/'/g,"\\'") + '\')" style="width:120px;height:70px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;margin-top:4px;font-size:.75rem;color:var(--muted);user-select:none;" title="Double-click to view">🔒 Hidden</div></div>';
-  if (c.photo_back) extraFields += '<div class="field"><div class="field-label">Card Back <span style="font-size:.65rem;color:var(--muted);">(double-click to view)</span></div><div ondblclick="openLightbox(\'' + c.photo_back.replace(/'/g,"\\'") + '\')" style="width:120px;height:70px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;margin-top:4px;font-size:.75rem;color:var(--muted);user-select:none;" title="Double-click to view">🔒 Hidden</div></div>';
+  if (c.photo_front) extraFields += '<div class="field"><div class="field-label">Card Front <span style="font-size:.65rem;color:var(--muted);">(double-click to view)</span></div><div ondblclick="viewPhoto(\'' + c.photo_front.replace(/'/g,"\\'") + '\')" style="width:120px;height:70px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;margin-top:4px;font-size:.75rem;color:var(--muted);user-select:none;" title="Double-click to view">🔒 Hidden</div></div>';
+  if (c.photo_back) extraFields += '<div class="field"><div class="field-label">Card Back <span style="font-size:.65rem;color:var(--muted);">(double-click to view)</span></div><div ondblclick="viewPhoto(\'' + c.photo_back.replace(/'/g,"\\'") + '\')" style="width:120px;height:70px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;margin-top:4px;font-size:.75rem;color:var(--muted);user-select:none;" title="Double-click to view">🔒 Hidden</div></div>';
 
   // Security Q&A — questions visible, answers hidden
   if (c.security_questions) {
@@ -1656,17 +1669,17 @@ function saveCredential() {
     });
   }
 
-  // Handle photo uploads to Supabase Storage
+  // Handle photo uploads to Supabase Storage.
+  // We store the bare path, not a signed URL — viewPhoto() generates a
+  // fresh short-lived (10-minute) signed URL only when someone actually
+  // double-clicks to view the photo, so nothing long-lived is ever stored.
   function uploadPhoto(file, side, cb) {
     if (!file) { cb(null); return; }
     var ext = file.name.split('.').pop();
     var path = currentUser.id + '/' + Date.now() + '-' + side + '.' + ext;
     _supabase.storage.from('card-photos').upload(path, file, { upsert: true }).then(function(result) {
       if (result.error) { cb(null); return; }
-      // Get signed URL
-      _supabase.storage.from('card-photos').createSignedUrl(path, 60 * 60 * 24 * 365).then(function(urlResult) {
-        cb(urlResult.data ? urlResult.data.signedUrl : null);
-      });
+      cb(path);
     });
   }
 
